@@ -121,8 +121,8 @@ public class CPU {
 				}
 				else if(this_addr_mode.equals("REL")) {
 					sb_operand.append("$");
-					// PC has NOT been incremented by calling exec() yet,
-					//    that being said, logOperand() must precede exec()!!!\
+					// PC has NOT been incremented by calling ) yet,
+					//    that being said, logOperand() must precede )!!!\
 					int pc = ((int)p) & 0x0000FFFF;
 					int addr = (int)(char)theFleurDeLisDriver.getByte(pc);
 					sb_operand.append(String.format("%04X", (regs.pc + addr)&0x0000FFFF));
@@ -181,8 +181,7 @@ public class CPU {
 	// ###################
 	// Read, write, incrementing PC, etc
 	// ###################
-	final class CYC { void foo(int _cycles) { cycles += _cycles; }}
-	final CYC cyc = new CYC();
+	void cyc(int _cycles) { cycles += _cycles;}
 	
 	final class READ {
 		byte foo() {
@@ -366,197 +365,161 @@ public class CPU {
 	// #################
 	// Instructions
 	// #################
-	interface InstName { abstract void foo(); }
 	private String this_inst;
-	void exec(InstName inst) {
-		this_inst = inst.getClass().getName();
-		inst.foo();
+	
+	private void adc() {
+		temp = (read.foo()) & 0x000000FF; 
+		if((regs.ps & AF_DECIMAL)!=0) {
+			val = to_bin.foo(regs.a) + to_bin.foo((byte)temp)
+					+ (flag_c != false ? 1 : 0);
+			flag_c = (val > 99);
+			regs.a = to_bcd.foo((byte)val); cyc(1);
+			setnz.foo(regs.a);
+		} else {
+			val = (regs.a&0xFF) + temp + (flag_c != false?1:0);
+			flag_c = (val>0xFF);
+			flag_v = (((regs.a & 0x80) == (temp &0x80)) &&
+					((regs.a & 0x80)!=(val&0x80)));
+			regs.a = (byte)(val & 0xFF);
+			setnz.foo(regs.a);
+		}
 	}
 	
-	final private class ADC implements InstName { public void foo() {
-			temp = (read.foo()) & 0x000000FF; 
-			if((regs.ps & AF_DECIMAL)!=0) {
-				val = to_bin.foo(regs.a) + to_bin.foo((byte)temp)
-						+ (flag_c != false ? 1 : 0);
-				flag_c = (val > 99);
-				regs.a = to_bcd.foo((byte)val); cyc.foo(1);
-				setnz.foo(regs.a);
-			} else {
-				val = (regs.a&0xFF) + temp + (flag_c != false?1:0);
-				flag_c = (val>0xFF);
-				flag_v = (((regs.a & 0x80) == (temp &0x80)) &&
-						((regs.a & 0x80)!=(val&0x80)));
-				regs.a = (byte)(val & 0xFF);
-				setnz.foo(regs.a);
-			}
-		}
-	} final ADC adc = new ADC();
+	private void bcc() {
+		if(flag_c == false) { regs.pc += addr; cyc(1); }
+	}
 	
-	final private class BCC implements InstName { public void foo() {
-		if(flag_c == false) { regs.pc += addr; cyc.foo(1); } }
-	} final BCC bcc = new BCC();
+	private void and() {
+		regs.a &= read.foo(); setnz.foo(regs.a);
+	}
 	
-	final private class AND implements InstName { public void foo() {
-		regs.a &= read.foo(); setnz.foo(regs.a); }
-	} final AND and = new AND();
+	private void asl() {
+		val = (read.foo() & 0x000000FF) << 1;
+		flag_c = (val > 0x000000FF);
+		setnz.foo((byte)val);
+		write.foo((byte)val);
+	}
 	
-	final private class ASL implements InstName { public void foo() {
-			val = (read.foo() & 0x000000FF) << 1;
-			flag_c = (val > 0x000000FF);
-			setnz.foo((byte)val);
-			write.foo((byte)val);
-		}
-	} final ASL asl = new ASL();
+	private void asla() {
+		val = (regs.a & 0x000000FF) << 1;
+		flag_c = (val > 0xFF); setnz.foo((byte)val);
+		regs.a = (byte)val;
+	}
 	
-	final private class ASLA implements InstName { public void foo() {
-			val = (regs.a & 0x000000FF) << 1;
-			flag_c = (val > 0xFF); setnz.foo((byte)val);
-			regs.a = (byte)val;
-		}
-	} final ASLA asla = new ASLA();
+	private void bcs() {
+		if(flag_c == true) {regs.pc += addr; cyc(1); }
+	}
 	
-	final private class BCS implements InstName { public void foo() {
-		if(flag_c == true) {regs.pc += addr; cyc.foo(1); }}
-	}final BCS bcs = new BCS();
+	private void beq() {
+		if(flag_z==true) {regs.pc += addr; cyc(1);}
+	}
 	
-	final private class BEQ implements InstName { public void foo() { 
-		if(flag_z==true) {regs.pc += addr; cyc.foo(1);} } }
-	final BEQ beq = new BEQ();
+	private void bit() {
+		val = read.foo() & 0x000000FF;
+		flag_z = !((regs.a & val)!=0);
+		flag_n = ((val & 0x80)!=0);
+		flag_v = ((val & 0x40)!=0);
+	}
 	
-	final private class BIT implements InstName { public void foo() {
-			val = read.foo() & 0x000000FF;
-			flag_z = !((regs.a & val)!=0);
-			flag_n = ((val & 0x80)!=0);
-			flag_v = ((val & 0x40)!=0);
-		}
-	} final BIT bit = new BIT();
+	private void bmi() {
+		if(flag_n==true) {regs.pc += addr; cyc(1); }
+	}
 	
-	final private class BMI implements InstName { public void foo() {
-		if(flag_n==true) {regs.pc += addr; cyc.foo(1); }}
-	} final BMI bmi = new BMI();
+	private void bpl() {
+		if(flag_n == false) { regs.pc += addr; cyc(1); }
+	}
 	
-	final private class BPL implements InstName { public void foo() {
-		if(flag_n == false) { regs.pc += addr; cyc.foo(1); } }
-	} final BPL bpl = new BPL();
+	private void brk() {
+		regs.pc += 1;
+		push.foo((byte)(regs.pc >> 8));
+		push.foo((byte)(regs.pc & 0xFF));
+		ef_to_af();
+		regs.ps |= AF_BREAK;
+		push.foo(regs.ps);
+		regs.ps |= AF_INTERRUPT;
+		regs.pc = theFleurDeLisDriver.getWord(0xFFFE);
+	}
 	
-	final private class BRK implements InstName { public void foo() {
-			regs.pc += 1;
-			push.foo((byte)(regs.pc >> 8));
-			push.foo((byte)(regs.pc & 0xFF));
-			ef_to_af();
-			regs.ps |= AF_BREAK;
-			push.foo(regs.ps);
-			regs.ps |= AF_INTERRUPT;
-			regs.pc = theFleurDeLisDriver.getWord(0xFFFE);
-		}
-	} final BRK brk = new BRK();
+	private void bne() {
+		if(flag_z == false) {regs.pc += addr; cyc(1); }
+	}
 	
-	final private class BNE implements InstName { public void foo () {
-		if(flag_z == false) {regs.pc += addr; cyc.foo(1); } }
-	} final BNE bne = new BNE();
+	private void bvs() {
+		if(flag_v==true) { regs.pc += addr; cyc(1); }
+	}
 	
-	final private class BVS implements InstName { public void foo() {
-		if(flag_v==true) { regs.pc += addr; cyc.foo(1); } }
-	} final BVS bvs = new BVS();
-	
-	final private class CLC implements InstName { public void foo() {
+	private void clc() {
 		flag_c = false;
-		regs.ps &= 0xFE; }
-	} final CLC clc = new CLC();
+		regs.ps &= 0xFE;
+	}
 	
-	final private class CLI implements InstName { public void foo() {
-		regs.ps &= ~AF_INTERRUPT; }
-	} final CLI cli = new CLI();
+	private void cli() {
+		regs.ps &= ~AF_INTERRUPT;
+	}
 	
-	final private class CMP implements InstName { public void foo() {
+	private void cmp() {
 		val = read.foo(); 
 		int lhs = (regs.a & 0x000000FF); // regs.a is a BYTE
 		int rhs = (val    & 0x000000FF); // val is a WORD.  Both are unsigned.
 		flag_c = (lhs >= rhs); 
 		val = lhs - rhs;
 		setnz.foo((byte)val);
-		}
-	} final CMP cmp = new CMP();
+	}
 	
-	final private class CPX implements InstName { public void foo() {
+	private void cpx() {
 		val = read.foo() & 0xFF;
 		flag_c = ((regs.x & 0xFF) >= val);
 		val = ((regs.x & 0xFF) - (val & 0xFF));
-		setnz.foo((byte)val); }
-	}final CPX cpx = new CPX();
+		setnz.foo((byte)val);
+	}
 	
-	final private class CPY implements InstName { public void foo() {
+	private void cpy() {
 		val = read.foo() & 0xFF;
 		flag_c = ((regs.y & 0xFF) >= val);
 		val = ((regs.y & 0xFF) - (val & 0xFF));
-		setnz.foo((byte)val); }
-	}final CPY cpy = new CPY();
+		setnz.foo((byte)val);
+	}
 	
-	final private class DEC implements InstName { public void foo() {
-			val = read.foo() - 1;
-			setnz.foo((byte)val);
-			write.foo((byte)val);
-		}
-	} final DEC dec = new DEC();
+	private void dec() {
+		val = read.foo() - 1;
+		setnz.foo((byte)val);
+		write.foo((byte)val);
+	}
 	
-	final private class DEX implements InstName { public void foo() {
-		regs.x -= 1; setnz.foo(regs.x); }
-	} final DEX dex = new DEX();
+	private void dex() {
+		regs.x -= 1; setnz.foo(regs.x);
+	}
 	
-	final private class DEY implements InstName { public void foo() {
-		regs.y -= 1; setnz.foo(regs.y); }
-	} final DEY dey = new DEY();
+	private void dey() {
+		regs.y -= 1; setnz.foo(regs.y);
+	}
 	
-	final private class EOR implements InstName { public void foo() {
-			regs.a ^= ((byte)read.foo());
-			setnz.foo(regs.a);
-		}
-	} final EOR eor = new EOR();
-	
-	final private class INC implements InstName { public void foo() {
+	private void eor() {
+		regs.a ^= ((byte)read.foo());
+		setnz.foo(regs.a);
+	}
+
+	private void inc() {
 		val = read.foo() + 1;
 		setnz.foo((byte)val);
-		write.foo((byte)val); }
-	} final INC inc = new INC();
-	
-	final private class INX implements InstName { public void foo() {
-			regs.x += 1; setnz.foo(regs.x);
-		}
-	} final INX inx = new INX();
-	
-	final private class INY implements InstName { public void foo() {
-		regs.y += 1; setnz.foo(regs.y); }
-	} final INY iny = new INY();
-	
-	
-	
-	final private class JMP implements InstName { public void foo() { 
-		regs.pc = (short)addr; }}
-	final JMP jmp = new JMP();
-	
-	final private class JSR implements InstName { public void foo() {
+		write.foo((byte)val); 
+	}
+	private void inx() {regs.x += 1; setnz.foo(regs.x);}
+	private void iny() {regs.y += 1; setnz.foo(regs.y);}
+	private void jmp() {regs.pc = (short)addr;}
+	private void jsr() {
 		regs.pc -= 1;
 		push.foo((byte) (regs.pc >> 8));
 		push.foo((byte) (regs.pc & 0xFF));
 		regs.pc = (short)addr;
-		}
-	} final JSR jsr = new JSR();
-	
-	final private class LDA implements InstName { public void foo() {
-		regs.a = read.foo();
-		setnz.foo(regs.a);
-		}
 	}
-	final LDA lda = new LDA();
-	
 	private void lda() {
 		regs.a = read.foo();
 		setnz.foo(regs.a);
 		this_inst = "LDA";
 	}
-	
 	private void bvc() {
-		if(flag_v==false) regs.pc += addr; cyc.foo(1);
+		if(flag_v==false) regs.pc += addr; cyc(1);
 		this_inst = "BVC";
 	}
 	
@@ -567,214 +530,166 @@ public class CPU {
 		setnz.foo(regs.x); 
 		this_inst="LDX";
 	}
+
+	private void ldy() {
+		regs.y = read.foo();
+		setnz.foo(regs.y);
+	}
 	
-	final private class LDY implements InstName { public void foo() {regs.y = read.foo();
-	setnz.foo(regs.y); }}
-	final LDY ldy = new LDY();
+	private void lsr() {
+		val = read.foo()&0xFF;
+		flag_c = ((val&1)!=0);
+		flag_n = false;
+		val >>= 1;
+		flag_z = ((val&0xFF)==0);
+		write.foo((byte)val);
+	}
 	
-	final private class LSR implements InstName { public void foo() {
-			val = read.foo()&0xFF;
-			flag_c = ((val&1)!=0);
-			flag_n = false;
-			val >>= 1;
-			flag_z = ((val&0xFF)==0);
-			write.foo((byte)val);
-		}
-	} final LSR lsr = new LSR();
+	private void lsra() {
+		flag_c = ((regs.a & 1)!=0);
+		flag_n = false;
+		regs.a = (byte)((regs.a&0xFF)>>1);
+		flag_z = ((regs.a&0xFF)==0);
+	}
 	
-	final private class LSRA implements InstName { public void foo() {
-			flag_c = ((regs.a & 1)!=0);
-			flag_n = false;
-			regs.a = (byte)((regs.a&0xFF)>>1);
-			flag_z = ((regs.a&0xFF)==0);
-		}
-	} final LSRA lsra = new LSRA();
+	private void nop() {}
+	private void ora() {
+		regs.a |= read.foo();
+		setnz.foo(regs.a);
+	}
 	
-	final private class NOP implements InstName { public void foo() {} }
-	final NOP nop = new NOP();
+	private void pha() {
+		push.foo(regs.a);
+	}
+	private void pla() {
+		regs.a = pop.foo(); setnz.foo(regs.a);
+	}
 	
-	final private class ORA implements InstName { public void foo() { regs.a |= read.foo();
-		setnz.foo(regs.a);}
-	} final ORA ora = new ORA();
+	private void plp() {
+		regs.ps = pop.foo(); af_to_ef();
+	}
 	
-	final private class PHA implements InstName { public void foo() {
-		push.foo(regs.a); }
-	} final PHA pha = new PHA();
-	
-	final private class PLA implements InstName { public void foo() {
-		regs.a = pop.foo(); setnz.foo(regs.a); }
-	} final PLA pla = new PLA();
-	
-	final private class PLP implements InstName { public void foo() {
-		regs.ps = pop.foo(); af_to_ef(); }
-	} final PLP plp = new PLP();
-	
-	final private class PHP implements InstName { public void foo() {
+	private void php() {
 		ef_to_af();
 		regs.ps |= AF_RESERVED;
 		push.foo(regs.ps);
-		}
-	} final PHP php = new PHP();
+	}
+
+	private void rola() {
+		val = regs.a << 1 | (flag_c!=false?1:0);
+		val &= 0xFFFF;
+		flag_c = (val > 0xFF);
+		regs.a = (byte)(val&0xFF);
+		setnz.foo(regs.a);
+	}
 	
-	final private class ROLA implements InstName { public void foo() {
-			val = regs.a << 1 | (flag_c!=false?1:0);
-			val &= 0xFFFF;
-			flag_c = (val > 0xFF);
+	private void rol() {
+		temp = read.foo() & 0xFF;
+		val = (temp << 1) | (flag_c != false?1:0);
+		flag_c = (val > 0xFF);
+		setnz.foo((byte)val);
+		write.foo((byte)val);
+	}
+	
+	private void ror() {
+		temp = (read.foo()&0xFF);
+		val = (temp >> 1) | (flag_c ? 0x80 : 0x00);
+		flag_c = (temp & 1)==1;
+		setnz.foo((byte)val);
+		write.foo((byte)val);
+	}
+	
+	private void rora() {
+		val = (((int)(regs.a&0xFF)) >> 1) | (flag_c ? 0x80 : 0x00);
+		flag_c = (regs.a & 1)==1;
+		regs.a = (byte)(val & 0xFF);
+		setnz.foo(regs.a);	
+	}
+	
+	private void rti() {
+		regs.ps = pop.foo(); 
+		cli(); irq = true;
+		af_to_ef();
+		regs.pc = (short)(pop.foo()&0x00FF);
+		regs.pc |= (pop.foo() << 8);
+	}
+	
+	
+	private void rts() {
+		regs.pc = (short)(pop.foo() & 0x00FF);
+		regs.pc |= (short)((pop.foo() << 8)&0x0000FF00); regs.pc += 1;
+	}
+
+	private void sbc() {
+		temp = (read.foo()) & 0x000000FF;
+		if((regs.ps & AF_DECIMAL)!=0) {
+			val = to_bin.foo(regs.a) - to_bin.foo((byte)temp) - (flag_c==true?0:1);
+			val = val & 0x0000FFFF;
+			flag_c = (val < 0x8000); // type of val is WORD.
+			regs.a = to_bcd.foo((byte)val);
+			setnz.foo(regs.a);
+			cyc(1);
+		} else {
+			temp = (read.foo()) & 0x000000FF;
+			val = (regs.a&0xFF) - (temp&0xFF) - (flag_c==true?0:1);
+			val = val & 0x0000FFFF;
+			flag_c = (val < 0x00008000);
+			flag_v = (((regs.a & 0x80)!=(temp & 0x80)) &&
+						((regs.a & 0x80)!=(val&0x80)));
 			regs.a = (byte)(val&0xFF);
 			setnz.foo(regs.a);
 		}
-	} final ROLA rola = new ROLA();
+	}
 	
-	final private class ROL implements InstName { public void foo() {
-			temp = read.foo() & 0xFF;
-			val = (temp << 1) | (flag_c != false?1:0);
-			flag_c = (val > 0xFF);
-			setnz.foo((byte)val);
-			write.foo((byte)val);
-		}
-	} final ROL rol = new ROL();
+	private void sec() {flag_c = true;}
+	private void sed() {regs.ps |= AF_DECIMAL;}
+	private void sta() {write.foo(regs.a);}
+	private void stx() {write.foo(regs.x);}
+	private void sty() {write.foo(regs.y);}
+	private void sei() {regs.ps |= (byte)AF_INTERRUPT;}
+	private void tax() {regs.x = regs.a;
+		setnz.foo(regs.x);
+	}
+	private void tsx() {regs.x = (byte)(regs.sp & 0xFF);
+		setnz.foo(regs.x);
+	}
 	
-	final private class ROR implements InstName { public void foo() {
-			temp = (read.foo()&0xFF);
-			val = (temp >> 1) | (flag_c ? 0x80 : 0x00);
-			flag_c = (temp & 1)==1;
-			setnz.foo((byte)val);
-			write.foo((byte)val);
-		}
-	} final ROR ror = new ROR();
+	private void txa() {regs.a = regs.x; setnz.foo(regs.a);}
+	private void txs() {regs.sp = (short) ((short)0x0100 | ((short)regs.x&0xFF));}
+	private void tya() {regs.a = regs.y; setnz.foo(regs.a);}
+	private void tay() {regs.y = regs.a; setnz.foo(regs.y);}
+	private void cld() {regs.ps &= (byte)~AF_DECIMAL;}
 	
-	final private class RORA implements InstName { public void foo() {
-			val = (((int)(regs.a&0xFF)) >> 1) | (flag_c ? 0x80 : 0x00);
-			flag_c = (regs.a & 1)==1;
-			regs.a = (byte)(val & 0xFF);
-			setnz.foo(regs.a);
-		}
-	}final RORA rora = new RORA();
-	
-	final private class RTI implements InstName { public void foo() {
-			regs.ps = pop.foo(); 
-			cli.foo(); irq = true;
-			af_to_ef();
-			regs.pc = (short)(pop.foo()&0x00FF);
-			regs.pc |= (pop.foo() << 8);
-		}
-	} final RTI rti = new RTI();
-	
-	final private class RTS implements InstName { public void foo() {
-		regs.pc = (short)(pop.foo() & 0x00FF);
-		regs.pc |= (short)((pop.foo() << 8)&0x0000FF00); regs.pc += 1; }
-	} final RTS rts = new RTS();
-	
-	final private class SBC implements InstName { 
-		public void foo() {
-			temp = (read.foo()) & 0x000000FF;
-			if((regs.ps & AF_DECIMAL)!=0) {
-				val = to_bin.foo(regs.a) - to_bin.foo((byte)temp) - (flag_c==true?0:1);
-				val = val & 0x0000FFFF;
-				flag_c = (val < 0x8000); // type of val is WORD.
-				regs.a = to_bcd.foo((byte)val);
-				setnz.foo(regs.a);
-				cyc.foo(1);
-			} else {
-				temp = (read.foo()) & 0x000000FF;
-				val = (regs.a&0xFF) - (temp&0xFF) - (flag_c==true?0:1);
-				val = val & 0x0000FFFF;
-				flag_c = (val < 0x00008000);
-				flag_v = (((regs.a & 0x80)!=(temp & 0x80)) &&
-							((regs.a & 0x80)!=(val&0x80)));
-				regs.a = (byte)(val&0xFF);
-				setnz.foo(regs.a);
-			}
-		}
-	} final SBC sbc = new SBC();
-	
-	final private class SEC implements InstName { public void foo() {
-		flag_c = true; }
-	} final SEC sec = new SEC();
-	
-	final private class SED implements InstName { public void foo() {
-		regs.ps |= AF_DECIMAL; }
-	} final SED sed = new SED();
-	
-	final private class STA implements InstName { public void foo() { 
-			write.foo(regs.a); 
-		}}
-	final STA sta = new STA();
-	
-	final private class STX implements InstName { public void foo() { write.foo(regs.x); }}
-	final STX stx = new STX();
-	
-	final private class STY implements InstName { public void foo() { write.foo(regs.y); }}
-	final STY sty = new STY();
-	
-	final private class SEI implements InstName { public void foo() 
-		{ regs.ps |= (byte)AF_INTERRUPT; } }
-	final SEI sei = new SEI();
-	
-	final private class TAX implements InstName {
-		public void foo() { regs.x = regs.a;
-			setnz.foo(regs.x);
-		}
-	} final TAX tax = new TAX();
-	
-	final private class TSX implements InstName {
-		public void foo() { regs.x = (byte)(regs.sp & 0xFF);
-			setnz.foo(regs.x);
-		}
-	} final TSX tsx = new TSX();
-	
-	final private class TXA implements InstName {
-		public void foo() { regs.a = regs.x; setnz.foo(regs.a); }
-	} final TXA txa = new TXA();
-	
-	final private class TXS implements InstName { 
-		public void foo() { regs.sp = (short) ((short)0x0100 | ((short)regs.x&0xFF)); }}
-	final TXS txs = new TXS();
-	
-	final private class TYA implements InstName {
-		public void foo() { regs.a = regs.y; setnz.foo(regs.a); }
-	} final TYA tya = new TYA();
-	
-	final private class TAY implements InstName {
-		public void foo() { regs.y = regs.a; setnz.foo(regs.y); }
-	} final TAY tay = new TAY();
-	
-	final class CLD implements InstName { 
-		public void foo() { regs.ps &= (byte)~AF_DECIMAL; } }
-	final CLD cld = new CLD();
 	
 	// ###################################
 	// Interrupts!
 	// ###################################
-	final private class NMI {
-		public void foo() {
-			if(wai==true) { regs.pc++; wai = false; }
+	
+	private void nmi() {
+		if(wai==true) { regs.pc++; wai = false; }
+		push.foo((byte)(regs.pc >> 8));
+		push.foo((byte)(regs.pc & 0xFF));
+		sei();
+		ef_to_af();
+		push.foo(regs.ps);
+		regs.pc = theFleurDeLisDriver.getWord(0xFFFA);
+		nmi = true;
+		cyc(7);
+	}
+	
+	private void irq() {
+		if(wai==true) { regs.pc++; wai = false; }
+		if((regs.ps & AF_INTERRUPT)==0) {
 			push.foo((byte)(regs.pc >> 8));
 			push.foo((byte)(regs.pc & 0xFF));
-			sei.foo();
 			ef_to_af();
+			regs.ps &= ~AF_BREAK;
 			push.foo(regs.ps);
-			regs.pc = theFleurDeLisDriver.getWord(0xFFFA);
-			nmi = true;
-			cyc.foo(7);
+			regs.pc = theFleurDeLisDriver.getWord(0xFFFE);
+			cyc(7);
+			sei();
 		}
-	} final NMI nmiFunc = new NMI();
-	
-	final private class IRQ {
-		public void foo() {
-			if(wai==true) { regs.pc++; wai = false; }
-			if((regs.ps & AF_INTERRUPT)==0) {
-				push.foo((byte)(regs.pc >> 8));
-				push.foo((byte)(regs.pc & 0xFF));
-				ef_to_af();
-				regs.ps &= ~AF_BREAK;
-				push.foo(regs.ps);
-				regs.pc = theFleurDeLisDriver.getWord(0xFFFE);
-				cyc.foo(7);
-				sei.foo();
-			}
-		}
-	} final IRQ irqFunc = new IRQ();
+	}
 	
 	// Totally copied from BanXian's code.
 	final public int oneInstruction() throws Exception {
@@ -791,305 +706,305 @@ public class CPU {
 		byte opcode = theFleurDeLisDriver.getByte(pc);
 		switch(opcode) {
 		case (byte)0x00: // BRK
-			am_null(); exec(brk);cyc.foo(7);break;
+			am_null(); brk();cyc(7);break;
 		case (byte)0x01:
-			am_indx(); exec(ora); cyc.foo(6); break;
+			am_indx(); ora(); cyc(6); break;
 		case (byte)0x03: // INVALID1
-			am_null(); cyc.foo(1); break;
+			am_null(); cyc(1); break;
 		case (byte)0x05: // ORA $12
-			am_zpg(); exec(ora); cyc.foo(3); break;
+			am_zpg(); ora(); cyc(3); break;
 		case (byte)0x06: // Zpg ASL; ASL $56
-			am_zpg(); exec(asl); cyc.foo(5); break;
+			am_zpg(); asl(); cyc(5); break;
 		case (byte)0x08: // PHP
-			am_null(); exec(php);cyc.foo(3); break;
+			am_null(); php(); cyc(3); break;
 		case (byte)0x09: // ORA #$12
-			am_imm(); exec(ora); cyc.foo(2); break;
+			am_imm(); ora(); cyc(2); break;
 		case (byte)0x0A:
-			am_null(); exec(asla);cyc.foo(2);break;
+			am_null(); asla();cyc(2);break;
 		case (byte)0x0D:
-			am_abs(); exec(ora); cyc.foo(4); break;
+			am_abs(); ora(); cyc(4); break;
 		case (byte)0x0E:
-			am_abs(); exec(asl); cyc.foo(6); break;
+			am_abs(); asl(); cyc(6); break;
 		case (byte)0x10: // 
-			am_rel(); exec(bpl); cyc.foo(2); break;
+			am_rel(); bpl(); cyc(2); break;
 		case (byte)0x11:
-			am_indy(); exec(ora); cyc.foo(4); break;
+			am_indy(); ora(); cyc(4); break;
 		case (byte)0x15:
-			am_zpgx(); exec(ora); cyc.foo(4); break;
+			am_zpgx(); ora(); cyc(4); break;
 		case (byte)0x18:
-			am_null(); exec(clc);cyc.foo(2); break;
+			am_null(); clc(); cyc(2); break;
 		case (byte)0x19:
-			am_absy(); exec(ora); cyc.foo(4); break;
+			am_absy(); ora(); cyc(4); break;
 		case (byte)0x1D: 
-			am_absx(); exec(ora); cyc.foo(4); break;
+			am_absx(); ora(); cyc(4); break;
 		case (byte)0x1E:
-			am_absx(); exec(asl); cyc.foo(6); break;
+			am_absx(); asl(); cyc(6); break;
 		case (byte)0x20: // JSR $1234
-			am_abs(); exec(jsr); cyc.foo(6); break;
+			am_abs(); jsr(); cyc(6); break;
 		case (byte)0x21:
-			am_indx();exec(and); cyc.foo(6); break;
+			am_indx();and(); cyc(6); break;
 		case (byte)0x24: // BIT $63
-			am_zpg(); exec(bit); cyc.foo(3); break;
+			am_zpg(); bit(); cyc(3); break;
 		case (byte)0x25: // ZPG AND
-			am_zpg(); exec(and); cyc.foo(3); break;
+			am_zpg(); and(); cyc(3); break;
 		case (byte)0x26: // ROL $60
-			am_zpg(); exec(rol); cyc.foo(5); break;
+			am_zpg(); rol(); cyc(5); break;
 		case (byte)0x28: // PLP
-			am_null(); exec(plp); cyc.foo(4); break;
+			am_null(); plp(); cyc(4); break;
 		case (byte)0x29: // Imm AND
-			am_imm(); exec(and); cyc.foo(2); break;
+			am_imm(); and(); cyc(2); break;
 		case (byte)0x2A:
-			am_null(); exec(rola);cyc.foo(2); break;
+			am_null(); rola(); cyc(2); break;
 		case (byte)0x2C: // Abs BIT
-			am_abs(); exec(bit); cyc.foo(4); break;
+			am_abs(); bit(); cyc(4); break;
 		case (byte)0x2D:
-			am_abs(); exec(and); cyc.foo(4); break;
+			am_abs(); and(); cyc(4); break;
 		case (byte)0x2E: // ROL
-			am_abs(); exec(rol); cyc.foo(6); break;
+			am_abs(); rol(); cyc(6); break;
 		case (byte)0x30: // BMI
-			am_rel(); exec(bmi); cyc.foo(2); break;
+			am_rel(); bmi(); cyc(2); break;
 		case (byte)0x31:
-			am_indy(); exec(and); cyc.foo(5); break;
+			am_indy(); and(); cyc(5); break;
 		case (byte)0x35:
-			am_zpgx(); exec(and); cyc.foo(4); break;
+			am_zpgx(); and(); cyc(4); break;
 		case (byte)0x38:
-			am_null(); exec(sec); cyc.foo(2); break;
+			am_null(); sec(); cyc(2); break;
 		case (byte)0x39:
-			am_absy(); exec(and); cyc.foo(4); break;
+			am_absy(); and(); cyc(4); break;
 		case (byte)0x3D:
-			am_absx(); exec(and); cyc.foo(4); break;
+			am_absx(); and(); cyc(4); break;
 		case (byte)0x3E:
-			am_absx(); exec(rol); cyc.foo(6); break;
+			am_absx(); rol(); cyc(6); break;
 		case (byte)0x40:
-			am_null(); exec(rti); cyc.foo(6); break;
+			am_null(); rti(); cyc(6); break;
 		case (byte)0x45:
-			am_zpg(); exec(eor); cyc.foo(3); break;
+			am_zpg(); eor(); cyc(3); break;
 		case (byte)0x46:
-			am_zpg(); exec(lsr); cyc.foo(5); break;
+			am_zpg(); lsr(); cyc(5); break;
 		case (byte)0x48:
-			am_null(); exec(pha); cyc.foo(3); break;
+			am_null(); pha(); cyc(3); break;
 		case (byte)0x49:
-			am_imm(); exec(eor); cyc.foo(3); break;
+			am_imm(); eor(); cyc(3); break;
 		case (byte)0x4A:
-			am_null(); exec(lsra); cyc.foo(2); break;
+			am_null(); lsra(); cyc(2); break;
 		case (byte)0x4C: // Abs JMP; e.g. JMP $E77E
-			am_abs(); exec(jmp); cyc.foo(3); break;
+			am_abs(); jmp(); cyc(3); break;
 		case (byte)0x4D:
-			am_abs(); exec(eor); cyc.foo(4); break;
+			am_abs(); eor(); cyc(4); break;
 		case (byte)0x4E:
-			am_abs(); exec(lsr); cyc.foo(6); break;
+			am_abs(); lsr(); cyc(6); break;
 		case (byte)0x50:
-			am_rel(); bvc(); cyc.foo(1); break;
+			am_rel(); bvc(); cyc(1); break;
 		case (byte)0x51:
-			am_indy(); exec(eor); cyc.foo(5); break;
+			am_indy(); eor(); cyc(5); break;
 		case (byte)0x55:
-			am_zpgx(); exec(eor); cyc.foo(4); break;
+			am_zpgx(); eor(); cyc(4); break;
 		case (byte)0x56:
-			am_zpgx(); exec(lsr); cyc.foo(6); break;
+			am_zpgx(); lsr(); cyc(6); break;
 		case (byte)0x58:
-			am_null(); exec(cli); cyc.foo(2); break;
+			am_null(); cli(); cyc(2); break;
 		case (byte)0x59:
-			am_absy(); exec(eor); cyc.foo(4); break;
+			am_absy(); eor(); cyc(4); break;
 		case (byte)0x60: // RTS
-			am_null(); exec(rts); cyc.foo(6); break;
+			am_null(); rts(); cyc(6); break;
 		case (byte)0x61:
-			am_indx(); exec(adc); cyc.foo(6); break;
+			am_indx(); adc(); cyc(6); break;
 		case (byte)0x65: // ADC $5F
-			am_zpg(); exec(adc); cyc.foo(3); break;
+			am_zpg(); adc(); cyc(3); break;
 		case (byte)0x66:
-			am_zpg(); exec(ror); cyc.foo(5); break;
+			am_zpg(); ror(); cyc(5); break;
 		case (byte)0x68:
-			am_null(); exec(pla); cyc.foo(4); break;
+			am_null(); pla(); cyc(4); break;
 		case (byte)0x69:
-			am_imm(); exec(adc); cyc.foo(2); break;
+			am_imm(); adc(); cyc(2); break;
 		case (byte)0x6A: // RORA
-			am_null(); exec(rora);cyc.foo(2); break;
+			am_null(); rora(); cyc(2); break;
 		case (byte)0x6C:
-			am_iabs();exec(jmp);cyc.foo(6); break;
+			am_iabs();jmp(); cyc(6); break;
 		case (byte)0x6D:
-			am_abs(); exec(adc); cyc.foo(4); break;
+			am_abs(); adc(); cyc(4); break;
 		case (byte)0x6E:
-			am_abs(); exec(ror); cyc.foo(6); break;
+			am_abs(); ror(); cyc(6); break;
 		case (byte)0x70:
-			am_rel(); exec(bvs); cyc.foo(2); break;
+			am_rel(); bvs(); cyc(2); break;
 		case (byte)0x71:
-			am_indy();exec(adc); cyc.foo(5); break;
+			am_indy();adc(); cyc(5); break;
 		case (byte)0x75:
-			am_zpgx(); exec(adc); cyc.foo(4); break;
+			am_zpgx(); adc(); cyc(4); break;
 		case (byte)0x76:
-			am_zpgx(); exec(ror); cyc.foo(6); break;
+			am_zpgx(); ror(); cyc(6); break;
 		case (byte)0x78: // SEI; sets interruption flag
-			am_null(); exec(sei); cyc.foo(2); break;
+			am_null(); sei(); cyc(2); break;
 		case (byte)0x79:
-			am_absy();exec(adc);cyc.foo(4); break;
+			am_absy();adc();cyc(4); break;
 		case (byte)0x7D:
-			am_absx(); exec(adc); cyc.foo(4); break;
+			am_absx(); adc(); cyc(4); break;
 		case (byte)0x7E:
-			am_absx(); exec(ror); cyc.foo(6); break;
+			am_absx(); ror(); cyc(6); break;
 		case (byte)0x81:
-			am_indx(); exec(sta); cyc.foo(6); break;
+			am_indx(); sta(); cyc(6); break;
 		case (byte)0x84: // ZPG STY
-			am_zpg(); exec(sty); cyc.foo(3); break;
+			am_zpg(); sty(); cyc(3); break;
 		case (byte)0x85: // Zpg STA; e.g. STA $0A
-			am_zpg(); exec(sta); cyc.foo(3); break;
+			am_zpg(); sta(); cyc(3); break;
 		case (byte)0x86: // ZPG STX
-			am_zpg(); exec(stx); cyc.foo(3); break;
+			am_zpg(); stx(); cyc(3); break;
 		case (byte)0x88: // DEY
-			am_null(); exec(dey); cyc.foo(2); break;
+			am_null(); dey(); cyc(2); break;
 		case (byte)0x8A: // TXA
-			am_null(); exec(txa);cyc.foo(2); break;
+			am_null(); txa(); cyc(2); break;
 		case (byte)0x8C:
-			am_abs(); exec(sty); cyc.foo(4); break;
+			am_abs(); sty(); cyc(4); break;
 		case (byte)0x8D: // Abs STA; e.g. STA $0489
-			am_abs(); exec(sta); cyc.foo(4); break;
+			am_abs(); sta(); cyc(4); break;
 		case (byte)0x8E:
-			am_abs(); exec(stx); cyc.foo(4); break;
+			am_abs(); stx(); cyc(4); break;
 		case (byte)0x90: // BCC
-			am_rel(); exec(bcc); cyc.foo(2); break;
+			am_rel(); bcc(); cyc(2); break;
 		case (byte)0x91: // INDY STA
-			am_indy();exec(sta); cyc.foo(6); break;
+			am_indy();sta(); cyc(6); break;
 		case (byte)0x94: // ZPGX STY
-			am_zpgx(); exec(sty); cyc.foo(4); break;
+			am_zpgx(); sty(); cyc(4); break;
 		case (byte)0x95:
-			am_zpgx(); exec(sta); cyc.foo(4); break;
+			am_zpgx(); sta(); cyc(4); break;
 		case (byte)0x98:
-			am_null(); exec(tya);cyc.foo(2); break;
+			am_null(); tya(); cyc(2); break;
 		case (byte)0x99:
-			am_absy();exec(sta); cyc.foo(5); break;
+			am_absy();sta(); cyc(5); break;
 		case (byte)0x9A:
-			am_null(); exec(txs); cyc.foo(2); break;
+			am_null(); txs(); cyc(2); break;
 		case (byte)0x9D:
-			am_absx();exec(sta); cyc.foo(5); break;
+			am_absx();sta(); cyc(5); break;
 		case (byte)0xA0: // LDY #$08
-			am_imm(); exec(ldy); cyc.foo(2); break;
+			am_imm(); ldy(); cyc(2); break;
 		case (byte)0xA1: // INDX LDA
-			am_indx(); lda(); cyc.foo(6); break;
+			am_indx(); lda(); cyc(6); break;
 		case (byte)0xA2: // Imm LDX
-			am_imm(); ldx(); cyc.foo(2); break;
+			am_imm(); ldx(); cyc(2); break;
 		case (byte)0xA4:
-			am_zpg(); exec(ldy); cyc.foo(3); break;
+			am_zpg(); ldy(); cyc(3); break;
 		case (byte)0xA5:
-			am_zpg(); lda(); ; cyc.foo(3); break;
+			am_zpg(); lda(); ; cyc(3); break;
 		case (byte)0xA6:
-			am_zpg(); ldx(); cyc.foo(3); break;
+			am_zpg(); ldx(); cyc(3); break;
 		case (byte)0xA8:
-			am_null();  exec(tay); cyc.foo(2); break;
+			am_null();  tay(); cyc(2); break;
 		case (byte)0xA9: // Imm LDA; e.g. LDA #$00
-			am_imm(); lda(); cyc.foo(2); break;
+			am_imm(); lda(); cyc(2); break;
 		case (byte)0xAA:
-			am_null(); exec(tax); cyc.foo(2); break;
+			am_null(); tax(); cyc(2); break;
 		case (byte)0xAC: // Abs LDY
-			am_abs(); exec(ldy); cyc.foo(4); break;
+			am_abs(); ldy(); cyc(4); break;
 		case (byte)0xAD: // Abs LDA; e.g. LDA $04BB
-			am_abs(); lda(); cyc.foo(4); break;
+			am_abs(); lda(); cyc(4); break;
 		case (byte)0xAE: // Abs LDX
-			am_abs(); ldx(); cyc.foo(4); break;
+			am_abs(); ldx(); cyc(4); break;
 		case (byte)0xB0: // BCS
-			am_rel(); exec(bcs); cyc.foo(2); break;
+			am_rel(); bcs(); cyc(2); break;
 		case (byte)0xB1: // INDY LDA
-			am_indy(); lda(); cyc.foo(5); break;
+			am_indy(); lda(); cyc(5); break;
 		case (byte)0xB4:
-			am_zpgx(); exec(ldy); cyc.foo(4); break;
+			am_zpgx(); ldy(); cyc(4); break;
 		case (byte)0xB5:
-			am_zpgx(); lda(); cyc.foo(4); break;
+			am_zpgx(); lda(); cyc(4); break;
 		case (byte)0xB6:
-			am_zpgy(); ldx(); cyc.foo(4); break;
+			am_zpgy(); ldx(); cyc(4); break;
 		case (byte)0xB8:
-			am_null(); clv(); cyc.foo(1); break;
+			am_null(); clv(); cyc(1); break;
 		case (byte)0xB9: // LDA $1000, Y
-			am_absy(); lda(); cyc.foo(4); break;
+			am_absy(); lda(); cyc(4); break;
 		case (byte)0xBA: // TSX
-			am_null();  exec(tsx); cyc.foo(4); break;
+			am_null();  tsx(); cyc(4); break;
 		case (byte)0xBC:
-			am_absx(); exec(ldy); cyc.foo(4); break;
+			am_absx(); ldy(); cyc(4); break;
 		case (byte)0xBD: // ABSX LDA
-			am_absx(); lda(); cyc.foo(4); break;
+			am_absx(); lda(); cyc(4); break;
 		case (byte)0xBE:
-			am_absy(); ldx(); cyc.foo(4); break;
+			am_absy(); ldx(); cyc(4); break;
 		case (byte)0xC0: // CPY #$08
-			am_imm(); exec(cpy); cyc.foo(2); break;
+			am_imm(); cpy(); cyc(2); break;
 		case (byte)0xC1:
-			am_indx(); exec(cmp); cyc.foo(6); break;
+			am_indx(); cmp(); cyc(6); break;
 		case (byte)0xC4: // CPY $62
-			am_zpg(); exec(cpy); cyc.foo(3); break;
+			am_zpg(); cpy(); cyc(3); break;
 		case (byte)0xC5: // CMP $61
-			am_zpg(); exec(cmp); cyc.foo(3); break;
+			am_zpg(); cmp(); cyc(3); break;
 		case (byte)0xC6: // Zpg DEC; e.g. DEC $10
-			am_zpg(); exec(dec); cyc.foo(5); break;
+			am_zpg(); dec(); cyc(5); break;
 		case (byte)0xC8: // INY
-			am_null(); exec(iny); cyc.foo(2); break;
+			am_null(); iny(); cyc(2); break;
 		case (byte)0xC9: // IMM CMP
-			am_imm(); exec(cmp); cyc.foo(2); break;
+			am_imm(); cmp(); cyc(2); break;
 		case (byte)0xCA: // DEX
-			am_null(); exec(dex); cyc.foo(2); break;
+			am_null(); dex(); cyc(2); break;
 		case (byte)0xCC:
-			am_abs(); exec(cpy); cyc.foo(4); break;
+			am_abs(); cpy(); cyc(4); break;
 		case (byte)0xCD:
-			am_abs(); exec(cmp); cyc.foo(4); break;
+			am_abs(); cmp(); cyc(4); break;
 		case (byte)0xCE:
-			am_abs(); exec(dec); cyc.foo(6); break;
+			am_abs(); dec(); cyc(6); break;
 		case (byte)0xD0:
-			am_rel(); exec(bne); cyc.foo(2); break;
+			am_rel(); bne(); cyc(2); break;
 		case (byte)0xD1:
-			am_indy(); exec(cmp); cyc.foo(5); break;
+			am_indy(); cmp(); cyc(5); break;
 		case (byte)0xD5:
-			am_zpgx(); exec(cmp); cyc.foo(4); break;
+			am_zpgx(); cmp(); cyc(4); break;
 		case (byte)0xD6:
-			am_zpgx(); exec(dec); cyc.foo(6); break;
+			am_zpgx(); dec(); cyc(6); break;
 		case (byte)0xD8: // CLD
-			am_null(); exec(cld); cyc.foo(2); break;
+			am_null(); cld(); cyc(2); break;
 		case (byte)0xD9: //
-			am_absy(); exec(cmp); cyc.foo(4); break;
+			am_absy(); cmp(); cyc(4); break;
 		case (byte)0xDD:
-			am_absx(); exec(cmp); cyc.foo(4); break;
+			am_absx(); cmp(); cyc(4); break;
 		case (byte)0xDE:
-			am_absx(); exec(dec); cyc.foo(6); break;
+			am_absx(); dec(); cyc(6); break;
 		case (byte)0xE0:
-			am_imm(); exec(cpx); cyc.foo(2); break;
+			am_imm(); cpx(); cyc(2); break;
 		case (byte)0xE1:
-			am_indx();exec(sbc); cyc.foo(6); break;
+			am_indx();sbc(); cyc(6); break;
 		case (byte)0xE4:
-			am_zpg(); exec(cpx); cyc.foo(3); break;
+			am_zpg(); cpx(); cyc(3); break;
 		case (byte)0xE5: // SBC $4E
-			am_zpg(); exec(sbc); cyc.foo(3); break;
+			am_zpg(); sbc(); cyc(3); break;
 		case (byte)0xE6:
-			am_zpg(); exec(inc); cyc.foo(5); break;
+			am_zpg(); inc(); cyc(5); break;
 		case (byte)0xE8:
-			am_null();  exec(inx); cyc.foo(2); break;
+			am_null();  inx(); cyc(2); break;
 		case (byte)0xE9:
-			am_imm(); exec(sbc); cyc.foo(2); break;
+			am_imm(); sbc(); cyc(2); break;
 		case (byte)0xEA: // NOP
-			am_null(); exec(nop); cyc.foo(2); break;
+			am_null(); nop(); cyc(2); break;
 		case (byte)0xEC:
-			am_abs(); exec(cpx); cyc.foo(4); break;
+			am_abs(); cpx(); cyc(4); break;
 		case (byte)0xED:
-			am_abs(); exec(sbc); cyc.foo(4); break;
+			am_abs(); sbc(); cyc(4); break;
 		case (byte)0xEE:
-			am_abs(); exec(inc); cyc.foo(5); break;
+			am_abs(); inc(); cyc(5); break;
 		case (byte)0xF0:
-			am_rel(); exec(beq); cyc.foo(2); break;
+			am_rel(); beq(); cyc(2); break;
 		case (byte)0xF1:
-			am_indy(); exec(sbc); cyc.foo(5); break;
+			am_indy(); sbc(); cyc(5); break;
 		case (byte)0xF5:
-			am_zpgx(); exec(sbc); cyc.foo(4); break;
+			am_zpgx(); sbc(); cyc(4); break;
 		case (byte)0xF6:
-			am_zpgx(); exec(inc); cyc.foo(6); break;
+			am_zpgx(); inc(); cyc(6); break;
 		case (byte)0xF9:
-			am_absy();exec(sbc); cyc.foo(4); break;
+			am_absy();sbc(); cyc(4); break;
 		case (byte)0xFD:
-			am_absx(); exec(sbc); cyc.foo(4); break;
+			am_absx(); sbc(); cyc(4); break;
 		case (byte)0xFE:
-			am_absx(); exec(inc); cyc.foo(6); break;
+			am_absx(); inc(); cyc(6); break;
 		default:
 			throw new Exception();
 		}
 		
 		if(stp == false) {
 			if(nmi == false) {
-				nmiFunc.foo();
+				nmi();
 			}
 			if(irq == false) { // TODO IRQ
-				irqFunc.foo();
+				irq();
 			}
 		}
 		
