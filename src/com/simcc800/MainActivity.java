@@ -7,9 +7,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import org.quadpixels.CPU;
-import org.quadpixels.EmulatorThread;
-import org.quadpixels.FleurDeLisDriver;
 
 import android.os.Bundle;
 import android.os.Environment;

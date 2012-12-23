@@ -1,6 +1,5 @@
 package com.simcc800;
 
-import org.quadpixels.FleurDeLisDriver;
 
 import android.content.Context;
 import android.graphics.Canvas;
