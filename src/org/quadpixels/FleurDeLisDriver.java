@@ -188,26 +188,6 @@ public class FleurDeLisDriver {
 		return ret;
 	}
 	
-	public void tommyDumpMemory() {
-		File f = new File("./MemoryDump1.txt");
-		try {
-			System.out.println("TommyDumpMemory Started.");
-			BufferedWriter out = new BufferedWriter(new FileWriter(f), 65536);
-			for(int i=0; i<65536; i++) {
-				if((i % 32) == 0) {
-					if(i>0) out.write("\n");
-					out.write(String.format("%04X | ", i));
-				}
-				out.write(String.format("%02X ", getByte(i)));
-			}
-			out.flush();
-			out.close();
-			System.out.println("TommyDumpMemory Completed.");
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-	
 	public FleurDeLisDriver(byte[] _brom, byte[] _nor, CPU _cpu) {
 		cpu = _cpu;
 		cpu.theFleurDeLisDriver = this;

@@ -20,6 +20,7 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
 	FleurDeLisDriver fleurDeLisDriver = null;
+	EmulatorThread thd;
 	WQXView myview;
 
 	@Override
@@ -30,6 +31,24 @@ public class MainActivity extends Activity {
 		WQXCC800();
 	}
 
+	@Override
+	protected void onPause() {
+		super.onPause();
+		thd.setIsRunning(false);
+	}
+	
+	@Override
+	protected void onResume() {
+		super.onResume();
+		thd.setIsRunning(true);
+	}
+	
+	@Override
+	protected void onStop() {
+		super.onStop();
+		thd.stop();
+	}
+	
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
 		// Inflate the menu; this adds items to the action bar if it is present.
@@ -85,7 +104,8 @@ public class MainActivity extends Activity {
 		myview.fleurDeLisDriver = fleurDeLisDriver;
 		cpu.cpuInitialize();
 		Toast.makeText(getApplicationContext(), "Init'ed FleurDeLisDriver", 5000).show();
-		EmulatorThread thd = new EmulatorThread(cpu, fleurDeLisDriver, this);
+		thd = new EmulatorThread(cpu, fleurDeLisDriver, this);
+		thd.setPriority(Thread.MAX_PRIORITY);
 		thd.start();
 	}
 	

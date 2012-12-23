@@ -8,6 +8,8 @@ public class EmulatorThread extends Thread {
 	int deadlockCounter = 0;
 	private static final int tommy_batch = (1<<19)-1;
 	MainActivity host;
+	byte lcdbuffer[] = new byte[1600];
+	private boolean is_running = true;
 	
 	// Must construct CPU and Driver first then construct this thread.
 	public EmulatorThread(CPU _cpu, FleurDeLisDriver _drv, MainActivity _host) {
@@ -17,15 +19,23 @@ public class EmulatorThread extends Thread {
 		host = _host;
 	}
 	
+	public void setIsRunning(boolean _is_running) {
+		is_running = _is_running;
+	}
+	
 	@Override
 	public	void run() {
 		// 11-16 Still under construction.
 		{
-			int batch_size = 100000;
+			int batch_size = 150000;
 			int curr_batch_todo = batch_size;
-			byte lcdbuffer[] = new byte[1600];
 			try {
 				while(true) {
+					if(is_running==false) {
+						Thread.sleep(1000);
+						continue;
+					}
+					
 					// Execute a BATCH of insts, then update LCD!
 					while(curr_batch_todo > 0) {
 					
