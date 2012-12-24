@@ -12,14 +12,12 @@
 
 package com.simcc800;
 
-import com.simcc800.FleurDeLisDriver.BasicAddress;
-
 public class CPU {
-	public long total_inst_count = 0;
+	public static long total_inst_count = 0;
 	
 	private static final int IO_RANGE = 0x40;
-	public FleurDeLisDriver theFleurDeLisDriver;
-	public class Regs {
+	public static FleurDeLisDriver theFleurDeLisDriver;
+	public static class Regs {
 		// Why, Java doesn't support unsigned data types?
 		byte a; 
 		private byte x;
@@ -29,10 +27,10 @@ public class CPU {
 		private short sp; // Stack pointer.
 	}
 	
-	final public Regs regs = new Regs();
-	public boolean irq, nmi, wai, stp;
+	final static public Regs regs = new Regs();
+	public static boolean irq, nmi, wai, stp;
 	
-	public void cpuInitialize() {
+	public static void cpuInitialize() {
 		regs.a = 0; regs.x = 0; regs.y = 0; regs.ps = 0x24;
 		regs.pc = theFleurDeLisDriver.getWord(0xFFFC);
 		regs.sp = 0x01FF;
@@ -51,8 +49,8 @@ public class CPU {
 	private final static byte AF_CARRY = (byte)0x01;
 	
 	// For temporary use!
-	private boolean flag_c, flag_n, flag_v, flag_z;
-	private int pc,   // Address of instruction
+	private static boolean flag_c, flag_n, flag_v, flag_z;
+	private static int pc,   // Address of instruction
 				addr,   // Address of source operand 
 				cycles,
 				val,
@@ -63,42 +61,42 @@ public class CPU {
 	// ###################
 	// Read, write, incrementing PC, etc
 	// ###################
-	void cyc(int _cycles) { cycles += _cycles;}
+	static void cyc(int _cycles) { cycles += _cycles;}
 	
-	byte read() {
+	static byte read() {
 		if((addr&0x0000FFFF) < IO_RANGE) {
 			try {
-				return theFleurDeLisDriver.ioread(addr);
+				return FleurDeLisDriver.ioread(addr);
 			} catch (NullPointerException e) {
 				System.err.println(String.format("IO Read ADDR=%08X", addr));
 				throw e;
 			}
 		} else {
-			return theFleurDeLisDriver.getByte(addr&0x0000FFFF);
+			return FleurDeLisDriver.getByte(addr&0x0000FFFF);
 		}
 	}
 	
-	void write(byte data) {
+	static void write(byte data) {
 		if((addr&0x0000FFFF) < IO_RANGE) {
-			theFleurDeLisDriver.iowrite(addr&0x0000FFFF, data);
+			FleurDeLisDriver.iowrite(addr&0x0000FFFF, data);
 		} else {
-			theFleurDeLisDriver.writeByte(addr&0x0000FFFF, data);
+			FleurDeLisDriver.writeByte(addr&0x0000FFFF, data);
 		}
 	}
 	
-	void push(byte data) {
+	static void push(byte data) {
 		int addr = regs.sp & 0x000001FF;
-		theFleurDeLisDriver.writeByte(addr, data);
+		FleurDeLisDriver.writeByte(addr, data);
 		addr = addr - 1;
 		if(addr < 0x0100) addr = 0x01FF;
 		regs.sp = (short)addr;
 	}
 	
-	private byte pop() {
+	static private byte pop() {
 		int addr = ((int)regs.sp) & 0x000001FF /* + 1 */; // Pay attention to opr priority.
 		addr = addr + 1;
 		if(addr > 0x01FF) addr = 0x0100;
-		byte ret = theFleurDeLisDriver.getByte(addr);
+		byte ret = FleurDeLisDriver.getByte(addr);
 		regs.sp = (short)addr;
 		return ret;
 	}
@@ -106,14 +104,14 @@ public class CPU {
 	// ###################################
 	// Flags
 	// ###################################
-	void af_to_ef() {
+	static void af_to_ef() {
 		flag_c = ((regs.ps & AF_CARRY)==AF_CARRY);
 		flag_n = ((regs.ps & AF_SIGN)==AF_SIGN);
 		flag_v = ((regs.ps & AF_OVERFLOW)==AF_OVERFLOW);
 		flag_z = ((regs.ps & AF_ZERO) == AF_ZERO);
 	}
 	
-	private void ef_to_af() {
+	static private void ef_to_af() {
 		regs.ps = (byte) (regs.ps & ~(AF_CARRY | AF_SIGN | AF_OVERFLOW 
 				| AF_ZERO));
 		if(flag_c == true) regs.ps |= AF_CARRY;
@@ -122,99 +120,99 @@ public class CPU {
 		if(flag_z == true) regs.ps |= AF_ZERO;
 	}
 	
-	byte to_bin(byte b) {
+	static byte to_bin(byte b) {
 		return (byte)(((b) >> 4)*10 + ((b) & 0x0F));
 	}
 	
-	final class TOBCD {
+	static final class TOBCD {
 		byte foo(byte b) {
 			return (byte)(((((b)/10) % 10) << 4) | ((b) % 10));
 		}
-	} final TOBCD to_bcd = new TOBCD();
+	} static final TOBCD to_bcd = new TOBCD();
 	
-	void setnz(byte a) {
+	static void setnz(byte a) {
 		flag_n = ((a & (byte)0x80) == (byte)0x80);
 		flag_z = (a == 0x00);
 	}
 	
 	
-	private void am_abs() {
+	static  private void am_abs() {
 		pc = ((int)regs.pc) & 0x0000FFFF;
-		addr = theFleurDeLisDriver.getWord(pc);
+		addr = FleurDeLisDriver.getWord(pc);
 		regs.pc = (short)(pc+2);
 	}
 	
 	
-	private void am_absx() {
-		addr = theFleurDeLisDriver.getWord(regs.pc & 0xFFFF);
+	static private void am_absx() {
+		addr = FleurDeLisDriver.getWord(regs.pc & 0xFFFF);
 		addr += (short)(regs.x & 0xFF);
 		regs.pc += 2;
 	}
 	
-	private void am_absy() {
-		addr = theFleurDeLisDriver.getWord(regs.pc & 0xFFFF);
+	static private void am_absy() {
+		addr = FleurDeLisDriver.getWord(regs.pc & 0xFFFF);
 		addr += (short)(regs.y & 0xFF);
 		regs.pc += 2;
 	}
 	
-	private void am_iabs() {
-		int star_pc = theFleurDeLisDriver.getWord(regs.pc & 0xFFFF);
-		addr = theFleurDeLisDriver.getWord(star_pc & 0xFFFF);
+	static private void am_iabs() {
+		int star_pc = FleurDeLisDriver.getWord(regs.pc & 0xFFFF);
+		addr = FleurDeLisDriver.getWord(star_pc & 0xFFFF);
 		regs.pc += 2;
 	}
 	
-	private void am_indx() {
-		int k = (int)(theFleurDeLisDriver.getByte(regs.pc&0xFFFF)&0xFF
+	static private void am_indx() {
+		int k = (int)(FleurDeLisDriver.getByte(regs.pc&0xFFFF)&0xFF
 				+ (int)(regs.x&0xFF))&0xFFFF;
-		addr = theFleurDeLisDriver.getWord(k);
+		addr = FleurDeLisDriver.getWord(k);
 		regs.pc++;
 	}
 	
-	private void am_indy() {
+	static private void am_indy() {
 		int k = ((int)(regs.pc)) & 0x0000FFFF;
-		addr = theFleurDeLisDriver.getWord(
-				theFleurDeLisDriver.getByte(k)&0x000000FF)
+		addr = FleurDeLisDriver.getWord(
+				FleurDeLisDriver.getByte(k)&0x000000FF)
 				+ (short)(regs.y & 0xFF);
 		addr = addr & 0x0000FFFF;
 		regs.pc++;
 	}
 	
-	private void am_zpg() {
+	static private void am_zpg() {
 		int pc = ((int)regs.pc) & 0x0000FFFF;
-		addr = theFleurDeLisDriver.getByte(pc);
+		addr = FleurDeLisDriver.getByte(pc);
 		addr &= 0x000000FF; // Zero page, addr should be 00 to FF /* &=0000FFFF */
 		regs.pc += 1;
 	}
 	
-	private void am_zpgx() {
+	static private void am_zpgx() {
 		int reg_plus_x = (regs.pc&0xFFFF);
-		addr = theFleurDeLisDriver.getByte(reg_plus_x&0xFFFF) + (regs.x&0xFF);
+		addr = FleurDeLisDriver.getByte(reg_plus_x&0xFFFF) + (regs.x&0xFF);
 		addr &= 0xFF;
 		regs.pc+=1;
 	}	
 	
-	private void am_zpgy() {
+	static private void am_zpgy() {
 		int reg_plus_y = regs.pc&0xFFFF;
-		addr = theFleurDeLisDriver.getByte(reg_plus_y) + (regs.y&0xFF);
+		addr = FleurDeLisDriver.getByte(reg_plus_y) + (regs.y&0xFF);
 		addr &= 0xFF;
 		regs.pc+=1;
 	}
 	
-	private void am_rel() {
+	static private void am_rel() {
 		pc = ((int)regs.pc) & 0x0000FFFF;
-		addr = (int)(char)theFleurDeLisDriver.getByte(pc);
+		addr = (int)(char)FleurDeLisDriver.getByte(pc);
 		addr &= 0x0000FFFF;
 		regs.pc = (short)(pc+1);
 	}
 	
-	private void am_imm() {
+	static private void am_imm() {
 		addr = ((int)regs.pc++) & 0x0000FFFF;
 	}
 	
-	private void am_null() {
+	static private void am_null() {
 	}
 	
-	private void adc() {
+	static private void adc() {
 		temp = (read()) & 0x000000FF; 
 		if((regs.ps & AF_DECIMAL)!=0) {
 			val = to_bin(regs.a) + to_bin((byte)temp)
@@ -232,51 +230,51 @@ public class CPU {
 		}
 	}
 	
-	private void bcc() {
+	static private void bcc() {
 		if(flag_c == false) { regs.pc += addr; cyc(1); }
 	}
 	
-	private void and() {
+	static private void and() {
 		regs.a &= read(); setnz(regs.a);
 	}
 	
-	private void asl() {
+	static private void asl() {
 		val = (read() & 0x000000FF) << 1;
 		flag_c = (val > 0x000000FF);
 		setnz((byte)val);
 		write((byte)val);
 	}
 	
-	private void asla() {
+	static private void asla() {
 		val = (regs.a & 0x000000FF) << 1;
 		flag_c = (val > 0xFF); setnz((byte)val);
 		regs.a = (byte)val;
 	}
 	
-	private void bcs() {
+	static private void bcs() {
 		if(flag_c == true) {regs.pc += addr; cyc(1); }
 	}
 	
-	private void beq() {
+	static private void beq() {
 		if(flag_z==true) {regs.pc += addr; cyc(1);}
 	}
 	
-	private void bit() {
+	static private void bit() {
 		val = read() & 0x000000FF;
 		flag_z = !((regs.a & val)!=0);
 		flag_n = ((val & 0x80)!=0);
 		flag_v = ((val & 0x40)!=0);
 	}
 	
-	private void bmi() {
+	static private void bmi() {
 		if(flag_n==true) {regs.pc += addr; cyc(1); }
 	}
 	
-	private void bpl() {
+	static private void bpl() {
 		if(flag_n == false) { regs.pc += addr; cyc(1); }
 	}
 	
-	private void brk() {
+	static private void brk() {
 		regs.pc += 1;
 		push((byte)(regs.pc >> 8));
 		push((byte)(regs.pc & 0xFF));
@@ -284,27 +282,27 @@ public class CPU {
 		regs.ps |= AF_BREAK;
 		push(regs.ps);
 		regs.ps |= AF_INTERRUPT;
-		regs.pc = theFleurDeLisDriver.getWord(0xFFFE);
+		regs.pc = FleurDeLisDriver.getWord(0xFFFE);
 	}
 	
-	private void bne() {
+	static private void bne() {
 		if(flag_z == false) {regs.pc += addr; cyc(1); }
 	}
 	
-	private void bvs() {
+	static private void bvs() {
 		if(flag_v==true) { regs.pc += addr; cyc(1); }
 	}
 	
-	private void clc() {
+	static private void clc() {
 		flag_c = false;
 		regs.ps &= 0xFE;
 	}
 	
-	private void cli() {
+	static private void cli() {
 		regs.ps &= ~AF_INTERRUPT;
 	}
 	
-	private void cmp() {
+	static private void cmp() {
 		val = read(); 
 		int lhs = (regs.a & 0x000000FF); // regs.a is a BYTE
 		int rhs = (val    & 0x000000FF); // val is a WORD.  Both are unsigned.
@@ -313,74 +311,74 @@ public class CPU {
 		setnz((byte)val);
 	}
 	
-	private void cpx() {
+	static private void cpx() {
 		val = read() & 0xFF;
 		flag_c = ((regs.x & 0xFF) >= val);
 		val = ((regs.x & 0xFF) - (val & 0xFF));
 		setnz((byte)val);
 	}
 	
-	private void cpy() {
+	static private void cpy() {
 		val = read() & 0xFF;
 		flag_c = ((regs.y & 0xFF) >= val);
 		val = ((regs.y & 0xFF) - (val & 0xFF));
 		setnz((byte)val);
 	}
 	
-	private void dec() {
+	static private void dec() {
 		val = read() - 1;
 		setnz((byte)val);
 		write((byte)val);
 	}
 	
-	private void dex() {
+	static private void dex() {
 		regs.x -= 1; setnz(regs.x);
 	}
 	
-	private void dey() {
+	static private void dey() {
 		regs.y -= 1; setnz(regs.y);
 	}
 	
-	private void eor() {
+	static private void eor() {
 		regs.a ^= ((byte)read());
 		setnz(regs.a);
 	}
 
-	private void inc() {
+	static private void inc() {
 		val = read() + 1;
 		setnz((byte)val);
 		write((byte)val); 
 	}
-	private void inx() {regs.x += 1; setnz(regs.x);}
-	private void iny() {regs.y += 1; setnz(regs.y);}
-	private void jmp() {regs.pc = (short)addr;}
-	private void jsr() {
+	static private void inx() {regs.x += 1; setnz(regs.x);}
+	static private void iny() {regs.y += 1; setnz(regs.y);}
+	static private void jmp() {regs.pc = (short)addr;}
+	static private void jsr() {
 		regs.pc -= 1;
 		push((byte) (regs.pc >> 8));
 		push((byte) (regs.pc & 0xFF));
 		regs.pc = (short)addr;
 	}
-	private void lda() {
+	static private void lda() {
 		regs.a = read();
 		setnz(regs.a);
 	}
-	private void bvc() {
+	static private void bvc() {
 		if(flag_v==false) regs.pc += addr; cyc(1);
 	}
 	
-	private void clv() { flag_v=false; }
+	static private void clv() { flag_v=false; }
 	
-	private void ldx() {
+	static private void ldx() {
 		regs.x = read();
 		setnz(regs.x);
 	}
 
-	private void ldy() {
+	static private void ldy() {
 		regs.y = read();
 		setnz(regs.y);
 	}
 	
-	private void lsr() {
+	static private void lsr() {
 		val = read()&0xFF;
 		flag_c = ((val&1)!=0);
 		flag_n = false;
@@ -389,37 +387,37 @@ public class CPU {
 		write((byte)val);
 	}
 	
-	private void lsra() {
+	static private void lsra() {
 		flag_c = ((regs.a & 1)!=0);
 		flag_n = false;
 		regs.a = (byte)((regs.a&0xFF)>>1);
 		flag_z = ((regs.a&0xFF)==0);
 	}
 	
-	private void nop() {}
-	private void ora() {
+	static private void nop() {}
+	static private void ora() {
 		regs.a |= read();
 		setnz(regs.a);
 	}
 	
-	private void pha() {
+	static private void pha() {
 		push(regs.a);
 	}
-	private void pla() {
+	static private void pla() {
 		regs.a = pop(); setnz(regs.a);
 	}
 	
-	private void plp() {
+	static private void plp() {
 		regs.ps = pop(); af_to_ef();
 	}
 	
-	private void php() {
+	static private void php() {
 		ef_to_af();
 		regs.ps |= AF_RESERVED;
 		push(regs.ps);
 	}
 
-	private void rola() {
+	static private void rola() {
 		val = regs.a << 1 | (flag_c!=false?1:0);
 		val &= 0xFFFF;
 		flag_c = (val > 0xFF);
@@ -427,7 +425,7 @@ public class CPU {
 		setnz(regs.a);
 	}
 	
-	private void rol() {
+	static private void rol() {
 		temp = read() & 0xFF;
 		val = (temp << 1) | (flag_c != false?1:0);
 		flag_c = (val > 0xFF);
@@ -435,7 +433,7 @@ public class CPU {
 		write((byte)val);
 	}
 	
-	private void ror() {
+	static private void ror() {
 		temp = (read()&0xFF);
 		val = (temp >> 1) | (flag_c ? 0x80 : 0x00);
 		flag_c = (temp & 1)==1;
@@ -443,14 +441,14 @@ public class CPU {
 		write((byte)val);
 	}
 	
-	private void rora() {
+	static private void rora() {
 		val = (((int)(regs.a&0xFF)) >> 1) | (flag_c ? 0x80 : 0x00);
 		flag_c = (regs.a & 1)==1;
 		regs.a = (byte)(val & 0xFF);
 		setnz(regs.a);	
 	}
 	
-	private void rti() {
+	static private void rti() {
 		regs.ps = pop(); 
 		cli(); irq = true;
 		af_to_ef();
@@ -459,12 +457,12 @@ public class CPU {
 	}
 	
 	
-	private void rts() {
+	static private void rts() {
 		regs.pc = (short)(pop() & 0x00FF);
 		regs.pc |= (short)((pop() << 8)&0x0000FF00); regs.pc += 1;
 	}
 
-	private void sbc() {
+	static private void sbc() {
 		temp = (read()) & 0x000000FF;
 		if((regs.ps & AF_DECIMAL)!=0) {
 			val = to_bin(regs.a) - to_bin((byte)temp) - (flag_c==true?0:1);
@@ -485,42 +483,42 @@ public class CPU {
 		}
 	}
 	
-	private void sec() {flag_c = true;}
-	private void sta() {write(regs.a);}
-	private void stx() {write(regs.x);}
-	private void sty() {write(regs.y);}
-	private void sei() {regs.ps |= (byte)AF_INTERRUPT;}
-	private void tax() {regs.x = regs.a;
+	static private void sec() {flag_c = true;}
+	static private void sta() {write(regs.a);}
+	static private void stx() {write(regs.x);}
+	static private void sty() {write(regs.y);}
+	static private void sei() {regs.ps |= (byte)AF_INTERRUPT;}
+	static private void tax() {regs.x = regs.a;
 		setnz(regs.x);
 	}
-	private void tsx() {regs.x = (byte)(regs.sp & 0xFF);
+	static private void tsx() {regs.x = (byte)(regs.sp & 0xFF);
 		setnz(regs.x);
 	}
 	
-	private void txa() {regs.a = regs.x; setnz(regs.a);}
-	private void txs() {regs.sp = (short) ((short)0x0100 | ((short)regs.x&0xFF));}
-	private void tya() {regs.a = regs.y; setnz(regs.a);}
-	private void tay() {regs.y = regs.a; setnz(regs.y);}
-	private void cld() {regs.ps &= (byte)~AF_DECIMAL;}
+	static private void txa() {regs.a = regs.x; setnz(regs.a);}
+	static private void txs() {regs.sp = (short) ((short)0x0100 | ((short)regs.x&0xFF));}
+	static private void tya() {regs.a = regs.y; setnz(regs.a);}
+	static private void tay() {regs.y = regs.a; setnz(regs.y);}
+	static private void cld() {regs.ps &= (byte)~AF_DECIMAL;}
 	
 	
 	// ###################################
 	// Interrupts!
 	// ###################################
 	
-	private void nmi() {
+	static private void nmi() {
 		if(wai==true) { regs.pc++; wai = false; }
 		push((byte)(regs.pc >> 8));
 		push((byte)(regs.pc & 0xFF));
 		sei();
 		ef_to_af();
 		push(regs.ps);
-		regs.pc = theFleurDeLisDriver.getWord(0xFFFA);
+		regs.pc = FleurDeLisDriver.getWord(0xFFFA);
 		nmi = true;
 		cyc(7);
 	}
 	
-	private void irq() {
+	static private void irq() {
 		if(wai==true) { regs.pc++; wai = false; }
 		if((regs.ps & AF_INTERRUPT)==0) {
 			push((byte)(regs.pc >> 8));
@@ -528,14 +526,14 @@ public class CPU {
 			ef_to_af();
 			regs.ps &= ~AF_BREAK;
 			push(regs.ps);
-			regs.pc = theFleurDeLisDriver.getWord(0xFFFE);
+			regs.pc = FleurDeLisDriver.getWord(0xFFFE);
 			cyc(7);
 			sei();
 		}
 	}
 	
 	// Totally copied from BanXian's code.
-	final public int oneInstruction() throws Exception {
+	static final public int oneInstruction() throws Exception {
 		
 		cycles = 0;
 		
@@ -543,7 +541,7 @@ public class CPU {
 		
 		pc = ((int)regs.pc) & 0x0000FFFF; // Always keep it unsigned
 		regs.pc += 1; // So that we don't mess up with signed/unsigned
-		byte opcode = theFleurDeLisDriver.getByte(pc);
+		byte opcode = FleurDeLisDriver.getByte(pc);
 		switch(opcode) {
 		case (byte)0x00: // BRK
 			am_null(); brk();cyc(7);break;

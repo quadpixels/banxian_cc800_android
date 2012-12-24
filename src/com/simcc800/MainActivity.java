@@ -96,12 +96,11 @@ public class MainActivity extends Activity {
 				e.printStackTrace();
 			}
 		}
-		CPU cpu = new CPU();
-		fleurDeLisDriver = new FleurDeLisDriver(brom_buf, norflash_buf, cpu);
+		fleurDeLisDriver = new FleurDeLisDriver(brom_buf, norflash_buf);
 		myview.fleurDeLisDriver = fleurDeLisDriver;
-		cpu.cpuInitialize();
+		CPU.cpuInitialize();
 		Toast.makeText(getApplicationContext(), "Init'ed FleurDeLisDriver", 5000).show();
-		thd = new EmulatorThread(cpu, fleurDeLisDriver, this);
+		thd = new EmulatorThread(this);
 		thd.setPriority(Thread.MAX_PRIORITY);
 		thd.start();
 	}

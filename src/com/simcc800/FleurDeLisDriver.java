@@ -5,22 +5,20 @@ import java.io.*;
 // Oh. Fleur de Lis.
 public class FleurDeLisDriver {
 	private final static boolean IS_DEBUG_BISCUIT = false;
-	
-	private CPU cpu;
-	short threadFlags;
+	static short threadFlags;
 	// Some I/O related stuff
-	boolean lcdoffshift0flag = false;
-	public boolean timer0started = false;
-	public boolean timer0waveoutstart = false;
-	public boolean timer1started = false;
-	public int prevtimer0value = 0;
-	private int lcdBuffAddr = 0;
+	static boolean lcdoffshift0flag = false;
+	static public boolean timer0started = false;
+	static public boolean timer0waveoutstart = false;
+	static public boolean timer1started = false;
+	static public int prevtimer0value = 0;
+	static private int lcdBuffAddr = 0;
 	private static final int RAM_SIZE = 0x10002;
-	private byte fixedram0000[] = new byte[RAM_SIZE]; // This array keeps fixedran0000, size=64K
-	private byte[] zp40cache = new byte[0x40];
-	byte keypadmatrix[][] = new byte[8][8];
-	private byte[] brom_file;
-	private byte[] norflash_file;
+	static private byte fixedram0000[] = new byte[RAM_SIZE]; // This array keeps fixedran0000, size=64K
+	static private byte[] zp40cache = new byte[0x40];
+	static byte keypadmatrix[][] = new byte[8][8];
+	static private byte[] brom_file;
+	static private byte[] norflash_file;
 	
 	private static final int MAP0000 = 0;
 	private static final int MAP2000 = 1;
@@ -44,9 +42,9 @@ public class FleurDeLisDriver {
 	private static final int IO0C_LCD_CTRL   = 0x0C;
 	private static final int IO0D_VOLUME_ID  = 0x0D;
 	
-	private final int IO15_PORT1_DIR  = 0x15;
+	static private final int IO15_PORT1_DIR  = 0x15;
 	
-	public void keymatrixChange(int idx_y, int idx_x, boolean is_pressed) {
+	static public void keymatrixChange(int idx_y, int idx_x, boolean is_pressed) {
 		if(is_pressed==true) keypadmatrix[idx_y][idx_x] = 1;
 		else keypadmatrix[idx_y][idx_x] = 0;
 		
@@ -55,14 +53,14 @@ public class FleurDeLisDriver {
 	}
 	
 	// Pointers to memory
-	AddressN[] pmemmap = new AddressN[8]; // This line creates 8 REFERENCES, not actual java.lang.Object's
-	AddressN[] may4000ptr = new AddressN[1]; // Java does not have pointer.
-	AddressN[] norbankheader = new AddressN[0x10]; // ##@@!!
-	AddressN[] volume0array  = new AddressN[0x100];
-	AddressN[] volume1array  = new AddressN[0x100];
-	AddressN[] bbsbankheader = new AddressN[0x10]; // ##@@!!
+	static AddressN[] pmemmap = new AddressN[8]; // This line creates 8 REFERENCES, not actual java.lang.Object's
+	static AddressN[] may4000ptr = new AddressN[1]; // Java does not have pointer.
+	static AddressN[] norbankheader = new AddressN[0x10]; // ##@@!!
+	static AddressN[] volume0array  = new AddressN[0x100];
+	static AddressN[] volume1array  = new AddressN[0x100];
+	static AddressN[] bbsbankheader = new AddressN[0x10]; // ##@@!!
 	
-	public void writeByte(int address, byte data) {
+	static public void writeByte(int address, byte data) {
 		int row = address >> 0xD;
 		/*
 		Address addr = pmemmap[row].add(address & 0x1FFF);
@@ -91,7 +89,7 @@ public class FleurDeLisDriver {
 		}
 	}
 	
-	public byte getByte(int address) {
+	static public byte getByte(int address) {
 		int row = address >> 0xD;
 		byte ret = 0x00;
 		/*
@@ -122,7 +120,7 @@ public class FleurDeLisDriver {
 		return ret;
 	}
 	
-	private byte getByteByLiteralPtr(AddressN addr) {
+	static private byte getByteByLiteralPtr(AddressN addr) {
 		byte ret = 0x00;
 		if(addr.type == AddressType.BROM) {
 			ret = brom_file[addr.offset];
@@ -136,7 +134,7 @@ public class FleurDeLisDriver {
 		return ret;
 	}
 	
-	public short getWord(int address) {
+	static public short getWord(int address) {
 		int row = address >> 0xD;
 		short ret = 0x0000;
 
@@ -188,9 +186,7 @@ public class FleurDeLisDriver {
 		return ret;
 	}
 	
-	public FleurDeLisDriver(byte[] _brom, byte[] _nor, CPU _cpu) {
-		cpu = _cpu;
-		cpu.theFleurDeLisDriver = this;
+	public FleurDeLisDriver(byte[] _brom, byte[] _nor) {
 		brom_file = _brom;
 		norflash_file = _nor;
 		
@@ -213,7 +209,7 @@ public class FleurDeLisDriver {
 	}
 	
 	// This guy is called from outside
-	public void checkTimebaseAndEnableIRQnEXIE1() {
+	static public void checkTimebaseAndEnableIRQnEXIE1() {
 		if((fixedram0000[IO04_GENERAL_CTRL] & 0x0F)!=0) {
 			threadFlags |= 0x10;
 			fixedram0000[IO01_INT_ENABLE] |= 0x8;
@@ -221,7 +217,7 @@ public class FleurDeLisDriver {
 	}
 	
 	// Also, this guy is called from outside
-	public void turnOff2HzNMIMaskAddIRQFlag() {
+	static public void turnOff2HzNMIMaskAddIRQFlag() {
 		if((fixedram0000[IO04_GENERAL_CTRL]&0xF)!=0) {
 			threadFlags |= 0x10;
 			fixedram0000[IO01_INT_ENABLE] |= 0x10; // Turn off 2Hz NMI.
@@ -229,14 +225,14 @@ public class FleurDeLisDriver {
 	}
 	
 	// Reset case
-	public void resetCPU() {
+	static public void resetCPU() {
 		fixedram0000[IO01_INT_ENABLE] |= 0x1;
 		fixedram0000[IO02_TIMER0_VAL] |= 0x1;
 		threadFlags &= 0xFF7F;
-		cpu.regs.pc = getWord(0xFFFC);
+		CPU.regs.pc = getWord(0xFFFC);
 	}
 	
-	private void fillC000BIOSBank(AddressN[] array) {
+	static private void fillC000BIOSBank(AddressN[] array) {
 		bbsbankheader[0].assign(array[0]);
 		if((fixedram0000[0x0D] & 1)!=0) {
 			bbsbankheader[1].assignAdd(norbankheader[0], 0x2000);
@@ -253,7 +249,7 @@ public class FleurDeLisDriver {
 		}
 	}
 	
-	private void switch4000ToBFFF(int bank) {
+	static private void switch4000ToBFFF(int bank) {
 		if((bank != 0) || ((fixedram0000[0x0A] & 0x80) != 0)) {
 			pmemmap[MAP4000].assign(may4000ptr[0]); // ##@@!!
 			pmemmap[MAP6000].assignAdd(may4000ptr[0], 0x2000); // ##@@!!
@@ -301,7 +297,7 @@ public class FleurDeLisDriver {
 		// 3. CPU initialize and set PS
 	}
 	
-	private void initRAM0IO() {
+	static private void initRAM0IO() {
 		fixedram0000[0x1B] = 0; // PWM Data
 		fixedram0000[0x01] = 0; // Interrupt Enable
 		fixedram0000[0x04] = 0; // General Ctrl
@@ -322,7 +318,7 @@ public class FleurDeLisDriver {
 		}
 	}
 	
-	public void updateKeypadRegisters() {
+	public static void updateKeypadRegisters() {
 		byte port1control = fixedram0000[0x15];
 		byte port0control = (byte) (fixedram0000[0x0F] & (byte)0xF0);
 		byte port1controlbit = 1; // I don't know what I'm doing
@@ -440,7 +436,7 @@ public class FleurDeLisDriver {
 	// I/O read/write stuff
 	// #######################
 	
-	public byte ioread(int idx) {
+	public static byte ioread(int idx) {
 		switch(idx) {
 		case 0x00: {
 			byte r = fixedram0000[IO00_BANK_SWITCH];
@@ -515,7 +511,7 @@ public class FleurDeLisDriver {
 		nullRead, nullRead, nullRead, nullRead, // 0x3C - 0x3F
 	};*/
 	
-	public void iowrite(int pos, int value) {
+	public static void iowrite(int pos, int value) {
 		switch(pos) {
 		case 0x00: // Write00BankSwitch
 		{
@@ -759,7 +755,7 @@ public class FleurDeLisDriver {
 		}
 	}
 	
-	private int getZeroPagePointer(byte bank) {
+	private static int getZeroPagePointer(byte bank) {
 		int ret = 0;
 		if(bank >= 4) {
 			ret = ((bank+4) << 6) & 0x0000FFFF;
