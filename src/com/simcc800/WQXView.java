@@ -102,8 +102,8 @@ public class WQXView extends View {
 		}
 	}
 
-	int last_key_col=-1;
-	int last_key_row=-1;
+	int last_key_col=0;
+	int last_key_row=0;
 	void on_touch(float x, float y, boolean is_down) {
 		if(mtx_deltax==0||mtx_deltay==0) return;
 		if(x==-1 && y==-1 && is_down==false) {
@@ -114,6 +114,8 @@ public class WQXView extends View {
 		}
 		int mtx_col = (int) (x/mtx_deltax);
 		int mtx_row = (int) ((y-keyboard_padding_top)/mtx_deltay);
+		if(mtx_row < 0 || mtx_row >= keys_height) return;
+		if(mtx_col < 0 || mtx_col >= keys_width)  return;
 		int mtxidx = mtx_row*keys_width + mtx_col;
 		if(mtxidx > keys_width*keys_height || mtxidx<0) return;
 		int keyidx = key_layout[mtxidx];
@@ -133,10 +135,6 @@ public class WQXView extends View {
 		postInvalidate();
 	}
 	
-	private void computeScreenMetrics() {
-		
-	}
-	
 	@Override
 	protected void onDraw(Canvas canvas) {
 		final int W = this.getWidth();
@@ -148,7 +146,7 @@ public class WQXView extends View {
 		
 		if(buf==null) {
 			text_paint.setTextAlign(Align.CENTER);
-			canvas.drawText("Ah! Perhaps you are in preview mode. Buf is null.", W/2, H/2, text_paint);
+			canvas.drawText("Please put obj.bin and cc800.fls under\nsdcard/cc800", W/2, H/2, text_paint);
 			return;
 		}
 		

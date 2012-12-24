@@ -15,34 +15,34 @@ public class FleurDeLisDriver {
 	public boolean timer1started = false;
 	public int prevtimer0value = 0;
 	private int lcdBuffAddr = 0;
-	private final int RAM_SIZE = 0x10002;
+	private static final int RAM_SIZE = 0x10002;
 	private byte fixedram0000[] = new byte[RAM_SIZE]; // This array keeps fixedran0000, size=64K
 	private byte[] zp40cache = new byte[0x40];
 	byte keypadmatrix[][] = new byte[8][8];
 	private byte[] brom_file;
 	private byte[] norflash_file;
 	
-	private final int MAP0000 = 0;
-	private final int MAP2000 = 1;
-	private final int MAP4000 = 2;
-	private final int MAP6000 = 3;
-	private final int MAP8000 = 4;
-	private final int MAPA000 = 5;
-	private final int MAPC000 = 6;
-	private final int MAPE000 = 7;
+	private static final int MAP0000 = 0;
+	private static final int MAP2000 = 1;
+	private static final int MAP4000 = 2;
+	private static final int MAP6000 = 3;
+	private static final int MAP8000 = 4;
+	private static final int MAPA000 = 5;
+	private static final int MAPC000 = 6;
+	private static final int MAPE000 = 7;
 	
 	// I/O port
-	private final int IO00_BANK_SWITCH= 0x00;
-	private final int IO01_INT_ENABLE = 0x01;
-	private final int IO02_TIMER0_VAL = 0x02;
-	private final int IO04_GENERAL_CTRL=0x04;
-	private final int IO06_LCD_CONFIG = 0x06;
-	private final int IO08_PORT0_DATA = 0x08;
-	private final int IO09_PORT1_DATA = 0x09;
-	private final int IO0A_ROA        = 0x0A;
-	private final int IO0B_LCD_CTRL   = 0x0B;
-	private final int IO0C_LCD_CTRL   = 0x0C;
-	private final int IO0D_VOLUME_ID  = 0x0D;
+	private static final int IO00_BANK_SWITCH= 0x00;
+	private static final int IO01_INT_ENABLE = 0x01;
+	private static final int IO02_TIMER0_VAL = 0x02;
+	private static final int IO04_GENERAL_CTRL=0x04;
+	private static final int IO06_LCD_CONFIG = 0x06;
+	private static final int IO08_PORT0_DATA = 0x08;
+	private static final int IO09_PORT1_DATA = 0x09;
+	private static final int IO0A_ROA        = 0x0A;
+	private static final int IO0B_LCD_CTRL   = 0x0B;
+	private static final int IO0C_LCD_CTRL   = 0x0C;
+	private static final int IO0D_VOLUME_ID  = 0x0D;
 	
 	private final int IO15_PORT1_DIR  = 0x15;
 	
@@ -439,29 +439,20 @@ public class FleurDeLisDriver {
 	// #######################
 	// I/O read/write stuff
 	// #######################
-	public interface IOFunction {}
-	public interface IORead extends IOFunction { byte foo(int pos); }
-	public interface IOWrite extends IOFunction {void foo(int pos, int value); }
 	
-	// ## Read ##
-	final class Read00BankSwitch implements IORead {
-		public byte foo(int idx) {
+	public byte ioread(int idx) {
+		switch(idx) {
+		case 0x00: {
 			byte r = fixedram0000[IO00_BANK_SWITCH];
 			return r;
 		}
-	}
-	final Read00BankSwitch read00BankSwitch = new Read00BankSwitch();
-	
-	final class Read04StopTimer0 implements IORead {
-		public byte foo(int idx) {
+		
+		case 0x04: { // Read04StopTimer0
 			timer0started = false;
 			if(timer0waveoutstart == true) timer0waveoutstart=false;
 			return fixedram0000[0x04];
 		}
-	} final Read04StopTimer0 read04StopTimer0 = new Read04StopTimer0();
-	
-	final class Read05StartTimer0 implements IORead {
-		public byte foo(int idx) {
+		case 0x05: { // Read05StartTimer0
 			timer0started = true;
 			if(fixedram0000[0x02] == (byte)0x3F) {
 				timer0waveoutstart = true;
@@ -469,42 +460,35 @@ public class FleurDeLisDriver {
 			prevtimer0value = fixedram0000[0x02];
 			return fixedram0000[0x05]; // Follow rulez by GGV
 		}
-	} final Read05StartTimer0 read05StartTimer0 = new Read05StartTimer0();
-	
-	final class Read06StopTimer1 implements IORead {
-		public byte foo(int idx) {
+		case 0x06: { // Read06StopTimer1
 			threadFlags |= 0x02;
 			// TODO What is mayGenralnClockCtrlValue in Banxian's code?
 			return fixedram0000[0x06];
 		}
-	} final Read06StopTimer1 read06StopTimer1 = new Read06StopTimer1();
-	
-	final class Read07StartTimer1 implements IORead {
-		public byte foo(int idx) {
+		
+		case 0x07: { // Read07StartTime1
 			threadFlags &= 0xFFFD;
 			return fixedram0000[0x07];
 		}
-	} final Read07StartTimer1 read07StartTimer1 = new Read07StartTimer1();
-	
-	final class Read08Port0 implements IORead {
-		public byte foo(int idx) {
+		
+		case 0x08: { // Read08Port0
 			updateKeypadRegisters();
 			return fixedram0000[IO08_PORT0_DATA];
 		}
-	} final Read08Port0 read08Port0 = new Read08Port0();
-	
-	final class Read09Port1 implements IORead {
-		public byte foo(int idx) {
+		
+		case 0x09: { // Read09Port1
 			updateKeypadRegisters();
 			return fixedram0000[IO09_PORT1_DATA];
 		}
-	} final Read09Port1 read09Port1 = new Read09Port1();
-	
-	final class NullRead implements IORead {
-		public byte foo(int idx) { return fixedram0000[idx]; }
+		
+		
+		
+		default:
+			return fixedram0000[idx];
+		}
 	}
-	final NullRead nullRead = new NullRead();
 	
+	/*
 	final IORead[] ioread = {
 		read00BankSwitch, // 0x00
 		nullRead, // 0x01
@@ -529,12 +513,13 @@ public class FleurDeLisDriver {
 		nullRead, nullRead, nullRead, nullRead, // 0x34 - 0x37
 		nullRead, nullRead, nullRead, nullRead, // 0x38 - 0x3B
 		nullRead, nullRead, nullRead, nullRead, // 0x3C - 0x3F
-	};
+	};*/
 	
-	// ## Write ##
-	final class Write00BankSwitch implements IOWrite {
-		public void foo(int pos, int bank) {
-			bank&=0xFF;
+	public void iowrite(int pos, int value) {
+		switch(pos) {
+		case 0x00: // Write00BankSwitch
+		{
+			int bank=value&0xFF;
 			if((fixedram0000[0x0A] & 0x80)==0x80) { // ROA == 1
 				// NOR flash has 16 banks, each 32KB. Totalling 512KB.
 				char nor_bank = (char)(bank & 0xF);
@@ -555,22 +540,19 @@ public class FleurDeLisDriver {
 			}
 			// Last, update the value of memory address $00
 			fixedram0000[0x00] = (byte)(bank);
+			break;
 		}
-	}
-	final Write00BankSwitch write00BankSwitch = new Write00BankSwitch();
-	
-	final class Write02Timer0Value implements IOWrite {
-		public void foo(int pos, int value) {
+		
+		case 0x02: // Write02Timer0Value
+		{
 			if(timer0started) {
 				prevtimer0value = value;
 			}
 			fixedram0000[IO02_TIMER0_VAL] = (byte)value;
+			break;
 		}
-	}
-	final Write02Timer0Value write02Timer0Value = new Write02Timer0Value();
-	
-	final class Write05ClockCtrl implements IOWrite {
-		public void foo(int pos, int value) {
+
+		case 0x05: {
 			// I can't really follow Banxian's code now.
 			if((fixedram0000[0x05] & 0x8) != 0) {
 				if((value & 0xF) == 0) {
@@ -578,23 +560,20 @@ public class FleurDeLisDriver {
 				}
 			}
 			fixedram0000[0x05] = (byte)value;
+			break;
 		}
-	}
-	final Write05ClockCtrl write05ClockCtrl = new Write05ClockCtrl();
-	
-	final class Write06LCDStartAddr implements IOWrite {
-		public void foo(int pos, int value) {
+		
+		case 0x06: {
 			int t = ((fixedram0000[0x0C] & 0x03) << 12);
 			t |= (value << 4);
 			t = t & 0x0000FFFF;
 			lcdBuffAddr = t;
 			fixedram0000[0x09] &= 0x000000FE;
 			fixedram0000[0x06] = (byte) (value&0xFF);
+			break;
 		}
-	} final Write06LCDStartAddr write06LCDStartAddr = new Write06LCDStartAddr();
-	
-	final class Write08Port0 implements IOWrite {
-		public void foo(int pos, int value) {
+		
+		case 0x08: {
 			fixedram0000[IO08_PORT0_DATA/*Port0 data*/] = (byte) value;
 			byte xbit = 1;
 			byte row6data = 0, row7data = 0;
@@ -618,13 +597,11 @@ public class FleurDeLisDriver {
 				fixedram0000[IO0B_LCD_CTRL] &= 0xFE;
 			}else { fixedram0000[IO0B_LCD_CTRL] |= 0x01; }
 			updateKeypadRegisters();
+			break;
 		}
-	} final Write08Port0 write08Port0 = new Write08Port0();
-	
-
-	// 我们是贫下中农，是社会的主人。 ---- 曾半仙
-	final class Write09Port1 implements IOWrite {
-		public void foo(int pos, int value) {
+			
+		case 0x09: //Write09Port1
+		{
 			fixedram0000[IO09_PORT1_DATA] = (byte)value;
 			// Cosplay the emulator!!!!
 			byte xbit = 1, row6data = 0, row7data = 0;
@@ -664,11 +641,11 @@ public class FleurDeLisDriver {
 			else {
 				updateKeypadRegisters();
 			}
-		}	
-	} final Write09Port1 write09Port1 = new Write09Port1();
-	
-	final class Write0AROABBS implements IOWrite {
-		public void foo(int pos, int value) {
+			break;
+		}
+		
+		case 0x0A: // Write0AROABBS
+		{
 			// BBS means "BIOS Bank Switch"
 			if(value != (int)(fixedram0000[0x0A]&0xFF)) {
 				int bank;
@@ -688,21 +665,20 @@ public class FleurDeLisDriver {
 				switch4000ToBFFF(bank&0xFF);
 				pmemmap[MAPC000].assign(bbsbankheader[value & 0x0F]);
 			}
+			break;
 		}
-	}
-	final Write0AROABBS write0AROABBS = new Write0AROABBS();
-	
-	final class Write0CTimer01Control implements IOWrite {
-		public void foo(int pos, int value) {
+		
+		case 0x0C: // Write0CTimer01Control
+		{
 			int t = ((value & 0x3) << 12) & 0x0000FFFF;
 			t = t | (fixedram0000[IO06_LCD_CONFIG] << 4);
 			fixedram0000[IO0C_LCD_CTRL] = (byte)value;
 			lcdBuffAddr = t;
+			break;
 		}
-	} final Write0CTimer01Control write0CTimer01Control = new Write0CTimer01Control();
-	
-	final class Write0DVolumeIDLCDSegCtrl implements IOWrite {
-		public void foo(int pos, int value) {
+		
+		case 0x0D: // Write0DVolumeIDLCDSegCtrl
+		{
 			if((value ^ fixedram0000[IO00_BANK_SWITCH] & 1) != 0) { // Assiciativity: Calculate '&' then '^'
 				// Bit 0 changed.
 				byte bank = fixedram0000[IO00_BANK_SWITCH];
@@ -730,36 +706,12 @@ public class FleurDeLisDriver {
 				switch4000ToBFFF(bank&0xFF); // Signed and unsigned
 			}
 			fixedram0000[IO0D_VOLUME_ID] = (byte)value;
+			break;
 		}
-	} final Write0DVolumeIDLCDSegCtrl write0DVolumeIDLCDSegCtrl =
-			new Write0DVolumeIDLCDSegCtrl();
-	
-	final class Write15ControlPort1 implements IOWrite {
-		public void foo(int pos, int value) {
-			fixedram0000[IO15_PORT1_DIR/*Port 1 direction*/] = (byte)value;
-			updateKeypadRegisters();
-		}
-	} final Write15ControlPort1 write15ControlPort1 = new Write15ControlPort1();
-	
-	final class Write0FZeroPageBankSwitch implements IOWrite {
-		// Taken from BanXian's code,
-		//    unsigned char* GetZeroPagePointer(unsigned char bank)
-		// indexes into fixedram0000
-		// Banxian reverse engineered the simulator.
-		private int getZeroPagePointer(byte bank) {
-			int ret = 0;
-			if(bank >= 4) {
-				ret = ((bank+4) << 6) & 0x0000FFFF;
-				/**  bank = 4    5    6    7
-				 *   ret  = 512  576  640  704
-				 *   ret  = 200h 240h 280h 2C0h
-				 */
-			} else {
-				ret = 0;
-			}
-			return ret;
-		}
-		public void foo(int pos, int value) {
+		
+		case 0x0F: // Write0FZeroPageBankSwitch
+		{
+
 			byte oldzpbank = (byte) (fixedram0000[0x0F] & 0x07);
 			byte newzpbank = (byte) (value & 7);
 			if(oldzpbank != newzpbank) {
@@ -786,23 +738,41 @@ public class FleurDeLisDriver {
 			}
 			fixedram0000[0x0F/*ZP_BSW*/] = (byte)value;
 		}
-	}final Write0FZeroPageBankSwitch write0FZeroPageBankSwitch
-		 = new Write0FZeroPageBankSwitch();
-	
-	final class Write20JG implements IOWrite {
-		public void foo(int pos, int value) {
+		
+		case 0x15: // Write15ControlPort1
+		{
+			fixedram0000[IO15_PORT1_DIR/*Port 1 direction*/] = (byte)value;
+			updateKeypadRegisters();
+			break;
+		}
+		
+		case 0x20: // Write20JG
+		{
 			if(value == (byte)0x80) fixedram0000[0x20] = 0;
 			else fixedram0000[0x20] = (byte)value;
+			break;
 		}
-	} final Write20JG write20JG = new Write20JG();
-	
-	final class NullWrite implements IOWrite {
-		public void foo(int pos, int value) {
+		
+		default:
 			fixedram0000[pos] = (byte)value;
+			break;
 		}
 	}
-	final NullWrite nullWrite = new NullWrite();
 	
+	private int getZeroPagePointer(byte bank) {
+		int ret = 0;
+		if(bank >= 4) {
+			ret = ((bank+4) << 6) & 0x0000FFFF;
+			/**  bank = 4    5    6    7
+			 *   ret  = 512  576  640  704
+			 *   ret  = 200h 240h 280h 2C0h
+			 */
+		} else {
+			ret = 0;
+		}
+		return ret;
+	}
+	/*// Eliminated!
 	final IOWrite[] iowrite = {
 		write00BankSwitch, // 0x00 - Bank Switch
 		nullWrite, // 0x01
@@ -845,5 +815,5 @@ public class FleurDeLisDriver {
 		nullWrite, nullWrite, nullWrite, nullWrite, // 0x35 - 0x38
 		nullWrite, nullWrite, nullWrite, nullWrite, // 0x39 - 0x3C
 		nullWrite, nullWrite, nullWrite,  // 0x3D - 0x3F
-	};
+	}; */
 }

@@ -13,8 +13,6 @@
 package com.simcc800;
 
 import com.simcc800.FleurDeLisDriver.BasicAddress;
-import com.simcc800.FleurDeLisDriver.IORead;
-import com.simcc800.FleurDeLisDriver.IOWrite;
 
 public class CPU {
 	public long total_inst_count = 0;
@@ -31,7 +29,7 @@ public class CPU {
 		private short sp; // Stack pointer.
 	}
 	
-	public Regs regs = new Regs();
+	final public Regs regs = new Regs();
 	public boolean irq, nmi, wai, stp;
 	
 	public void cpuInitialize() {
@@ -60,108 +58,6 @@ public class CPU {
 				val,
 				temp; //
 	
-	// #######################################
-	// Private methods for logging disassembly
-	private String regs_log, inst_log, operand_log, machcode_log;
-	private short prev_pc;
-	private void logRegisters() {
-		String cpu_state = Integer.toBinaryString(regs.ps & 0x000000FF);
-		StringBuilder sb = new StringBuilder(cpu_state);
-		for(int i=cpu_state.length(); i<8; i++) { sb.insert(0, "0"); }
-		regs_log = (String.format("%02X %02X %02X %04X %s",
-				regs.a,
-				regs.x,
-				regs.y,
-				regs.sp,
-				sb.toString()));
-	}
-	// This method is for debugging purpose only.
-	private void logOperandAndMachineCode() {
-		StringBuilder sb_operand = new StringBuilder();
-		StringBuilder sb_machcode = new StringBuilder();
-		/*
-		 *  3-byte inst in memory:
-		 *  +--------+----+----+
-		 *  | OPCode | Hi | Lo |
-		 *  +--------+----+----+
-		 *  p         p+1  p+2
-		 */
-		// 1. Log the operand.
-		{
-			int p = prev_pc + 1;
-			if(this_addr_mode.equals("")) operand_log="";
-			else {
-				if(this_addr_mode.equals("ABS") ||  // The beauty and ugliness of
-					this_addr_mode.equals("ZPG")) { // O.O.P. !!!
-					while((short)(p&0xFFFF) != regs.pc) {
-						int addr = ((int)(p)) & 0xFFFF;
-						sb_operand.insert(0, String.format("%02X", theFleurDeLisDriver.getByte(addr)));
-						p += 1;
-					}
-					sb_operand.insert(0, "$");
-				} 
-				else if(this_addr_mode.equals("IMM")) {
-					sb_operand.append("#$");
-					int addr = ((int)(p)) & 0xFFFF;
-					sb_operand.append(String.format("%02X", theFleurDeLisDriver.getByte(addr)));
-				}
-				else if(this_addr_mode.equals("REL")) {
-					sb_operand.append("$");
-					// PC has NOT been incremented by calling ) yet,
-					//    that being said, logOperand() must precede )!!!\
-					int pc = ((int)p) & 0x0000FFFF;
-					int addr = (int)(char)theFleurDeLisDriver.getByte(pc);
-					sb_operand.append(String.format("%04X", (regs.pc + addr)&0x0000FFFF));
-				}
-				else if(this_addr_mode.equals("IABS")) { // JMP $(00BA)
-					sb_operand.append("$(");
-					int pc = ((int)p) & 0x0000FFFF;
-					int addr = (int)(theFleurDeLisDriver.getWord(pc&0xFFFF)&0xFFFF);
-					sb_operand.append(String.format("$04X)", addr));
-				}
-				else if(this_addr_mode.equals("INDY")) { // STA ($08),Y
-					sb_operand.append("($");
-					int pc = ((int)p) & 0x0000FFFF;
-					int addr = (int)(char)theFleurDeLisDriver.getByte(pc) & 0xFF;
-					sb_operand.append(String.format("%02X),Y", addr));
-				}
-				else if(this_addr_mode.equals("ABSX")) { // STA $9999, X
-					sb_operand.append("$");
-					int addr = (int)(short)theFleurDeLisDriver.getWord(regs.pc&0xFFFF) & 0xFFFF;
-					sb_operand.append(String.format("%04X,X", addr));
-				}
-				else if(this_addr_mode.equals("ABSY")) { // STA $9999, X
-					sb_operand.append("$");
-					int addr = (int)(short)theFleurDeLisDriver.getWord(p&0xFFFF) & 0xFFFF;
-					sb_operand.append(String.format("%04X,Y", addr));
-				}
-				else if(this_addr_mode.equals("ZPGX")) { // STA $70,X
-					sb_operand.append("$");
-					int addr = (int)(char)theFleurDeLisDriver.getByte(p&0xFFFF)&0xFF;
-					sb_operand.append(String.format("%02X,X", addr));
-				}
-				operand_log = sb_operand.toString();
-			}
-		}
-		// 2. Log the machine codes
-		{
-			int p = prev_pc;
-			while((short)(p&0xFFFF) != regs.pc) {
-				sb_machcode.append(String.format("%02X", theFleurDeLisDriver.getByte(p&0xFFFF)));
-				p=p+1;
-			}
-			machcode_log = sb_machcode.toString();
-		}
-	}
-	private void logInst() {
-		StringBuilder sb = new StringBuilder();
-		String inst_name = this_inst;
-		int idx = inst_name.lastIndexOf('$');
-		inst_name = inst_name.substring(idx+1);
-		sb.append(inst_name + " ");
-		inst_log = sb.toString();
-	}
-	
 	// Caution: dependencies of those macros.
 	
 	// ###################
@@ -172,8 +68,7 @@ public class CPU {
 	byte read() {
 		if((addr&0x0000FFFF) < IO_RANGE) {
 			try {
-				IORead ior = (IORead) theFleurDeLisDriver.ioread[addr];
-				return ior.foo(addr);
+				return theFleurDeLisDriver.ioread(addr);
 			} catch (NullPointerException e) {
 				System.err.println(String.format("IO Read ADDR=%08X", addr));
 				throw e;
@@ -185,8 +80,7 @@ public class CPU {
 	
 	void write(byte data) {
 		if((addr&0x0000FFFF) < IO_RANGE) {
-			IOWrite iow = (IOWrite) theFleurDeLisDriver.iowrite[addr&0x0000FFFF];
-			iow.foo(addr&0x0000FFFF, data);
+			theFleurDeLisDriver.iowrite(addr&0x0000FFFF, data);
 		} else {
 			theFleurDeLisDriver.writeByte(addr&0x0000FFFF, data);
 		}
@@ -243,11 +137,6 @@ public class CPU {
 		flag_z = (a == 0x00);
 	}
 	
-	
-	// #################
-	// Addressing modes
-	// #################
-	private String this_addr_mode;
 	
 	private void am_abs() {
 		pc = ((int)regs.pc) & 0x0000FFFF;
@@ -324,11 +213,6 @@ public class CPU {
 	
 	private void am_null() {
 	}
-	
-	// #################
-	// Instructions
-	// #################
-	private String this_inst;
 	
 	private void adc() {
 		temp = (read()) & 0x000000FF; 
@@ -479,19 +363,16 @@ public class CPU {
 	private void lda() {
 		regs.a = read();
 		setnz(regs.a);
-		this_inst = "LDA";
 	}
 	private void bvc() {
 		if(flag_v==false) regs.pc += addr; cyc(1);
-		this_inst = "BVC";
 	}
 	
-	private void clv() { flag_v=false; this_inst="CLV"; }
+	private void clv() { flag_v=false; }
 	
 	private void ldx() {
 		regs.x = read();
-		setnz(regs.x); 
-		this_inst="LDX";
+		setnz(regs.x);
 	}
 
 	private void ldy() {
@@ -605,7 +486,6 @@ public class CPU {
 	}
 	
 	private void sec() {flag_c = true;}
-	private void sed() {regs.ps |= AF_DECIMAL;}
 	private void sta() {write(regs.a);}
 	private void stx() {write(regs.x);}
 	private void sty() {write(regs.y);}
