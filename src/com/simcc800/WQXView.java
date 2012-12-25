@@ -1,20 +1,34 @@
 package com.simcc800;
 
 
+import java.nio.IntBuffer;
+
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Paint.Align;
 import android.graphics.Paint.Style;
 import android.graphics.Rect;
+import android.graphics.Matrix;
 import android.util.AttributeSet;
 import android.view.*;
 
 public class WQXView extends View {
+	MainActivity host;
 	private int zoom;
+	private Bitmap mBitmap;
+	private Matrix mScaleMatrix, mTranslateMatrix;
+	private int[] mScreenPixelData;
+	
 	public WQXView(Context context, AttributeSet attrs) {
 		super(context, attrs);
+		mBitmap = Bitmap.createBitmap(160, 80, Bitmap.Config.ARGB_8888);
+		mScreenPixelData = new int[160*80/8*8];
+		mScaleMatrix = new Matrix();
+		mScaleMatrix.setScale(4, 4);
+		mTranslateMatrix = new Matrix();
 		this.setOnTouchListener(new View.OnTouchListener() {
 			@Override
 			public boolean onTouch(View v, MotionEvent event) {
@@ -27,23 +41,23 @@ public class WQXView extends View {
 			}
 		});
 	}
-	public FleurDeLisDriver fleurDeLisDriver;
 
 	byte[] buf;
-	int num_insts = 0;
 	final Rect bounds = new Rect();
 	Paint px_paint = new Paint();
 	Paint text_paint = new Paint();
 	int keyboard_padding_top;
 	int mtx_deltax, mtx_deltay;
+	String text_instcnt;
+	int percent; // Emulation speed benchmark
 	
 	final static String keys_sz[] = {
 	/* 0-7 */	" ", " ", "ON", " ", " ", " ", " ", " ", 
 	/* 8-15 */	"英汉", "名片", "计算", "提醒", "资料", "时间", "网络", " ",
-	/* 16-23 */	"求助", "Shift", "Caps", "跳出", "0", ".", "=", "←",
-	/* 24-31 */	"Z", "X", "C", "V", "B", "N", "M", "PgUp",
-	/* 32-39 */	"A", "S", "D", "F", "G", "H", "J", "K",
-	/* 40-47 */	"Q", "W", "E", "R", "T", "Y", "U", "I",
+	/* 16-23 */	"求助", "Shift", "Caps", "跳出", "0", ".", "空格|=", "←",
+	/* 24-31 */	"Z", "X", "C", "V", "B|1", "N|2", "M|3", "PgUp",
+	/* 32-39 */	"A", "S", "D", "F", "G|4", "H|5", "J|6", "K",
+	/* 40-47 */	"Q", "W", "E", "R", "T|7", "Y|8", "U|9", "I",
 	/* 48-55 */	"O", "L", "↑", "↓", "P", "输入", "PgDn", "→",
 	/* 56-63 */	" ", " ", "F1", "F2", "F3", "F4", " ", " "
 	};
@@ -108,8 +122,7 @@ public class WQXView extends View {
 		if(mtx_deltax==0||mtx_deltay==0) return;
 		if(x==-1 && y==-1 && is_down==false) {
 			keys_state[last_key_row*8+last_key_col]=0;
-			fleurDeLisDriver.keymatrixChange(last_key_row, last_key_col, false);
-			postInvalidate();
+			FleurDeLisDriver.keymatrixChange(last_key_row, last_key_col, false);
 			return;
 		}
 		int mtx_col = (int) (x/mtx_deltax);
@@ -119,21 +132,22 @@ public class WQXView extends View {
 		int mtxidx = mtx_row*keys_width + mtx_col;
 		if(mtxidx > keys_width*keys_height || mtxidx<0) return;
 		int keyidx = key_layout[mtxidx];
+		if(keyidx==-1) return;
 		if(keys_state[keyidx]==2) return;
 		if(is_down) {
 			keys_state[keyidx] = 1;
 			int row = keyidx >> 3, col = keyidx & 0x7;
-			fleurDeLisDriver.keymatrixChange(row, col, true);
+			FleurDeLisDriver.keymatrixChange(row, col, true);
 			last_key_row = row; last_key_col = col;
-			postInvalidate();
 		}
 	}
 	
-	public void update(byte[] buf, int num_insts) {
-		this.num_insts = num_insts;
+	public void update(byte[] buf) {
 		this.buf = buf;
+		text_instcnt = host.thdEmulator.getPerformanceString();
 		postInvalidate();
 	}
+	
 	
 	@Override
 	protected void onDraw(Canvas canvas) {
@@ -141,7 +155,7 @@ public class WQXView extends View {
 		final int H = this.getHeight();
 		final int zoom = this.getWidth()/160;
 		final int padding_left = (W-160*zoom)/2;
-		
+		mTranslateMatrix.setTranslate(padding_left, 0);
 		text_paint.setTextAlign(Align.LEFT);
 		
 		if(buf==null) {
@@ -150,35 +164,44 @@ public class WQXView extends View {
 			return;
 		}
 		
-		String text_instcnt = "Inst count: "+num_insts;
+		keyboard_padding_top = (int) (80*zoom + text_paint.getTextSize());
 		{
 			// Inst Count
+			
 			text_paint.getTextBounds(text_instcnt, 0, text_instcnt.length(), bounds);
-			text_paint.setColor(Color.DKGRAY);
+			if(host.thdEmulator.isTooSlow()==true) { text_paint.setColor(Color.RED);}
+			else { text_paint.setColor(Color.DKGRAY); }
 			final int y = (int) (80*zoom + bounds.height());
-			keyboard_padding_top = (int) (80*zoom + text_paint.getTextSize());
+			
 			canvas.drawText(text_instcnt, 0, y, text_paint);
+			
 		}
 		
 		px_paint.setStyle(Style.FILL);
-		int idx = 0, i = 0, j = 0;
+		int idx_buf = 0, idx_pixel=0, i = 0, j = 0;
 		boolean curr_black = false;
-		while(idx < 1600) {
+		while(idx_buf < 1600) {
 			for(int bid=0; bid<8; bid++) { // bid = bit id
 				byte mask =	 (byte)(1 << (7-bid));
-				if((buf[idx] & mask)!=0) {
+				if((buf[idx_buf] & mask)!=0) {
 					curr_black = true;
 				} else curr_black = false;
 				
 				if(curr_black==true) {
-					px_paint.setColor(Color.BLACK);
-				} else px_paint.setColor(Color.LTGRAY);
-				canvas.drawRect(padding_left+i*zoom, j*zoom, padding_left+i*zoom+zoom, j*zoom+zoom, px_paint);
+					mScreenPixelData[idx_pixel] = 0xFF000000;
+				} else {
+					mScreenPixelData[idx_pixel] = 0xFFCCCCCC;
+				}
+				idx_pixel++;
 				i=i+1;
 				if(i==160) { i=0; j+=1; }
 			}
-			idx++;
+			idx_buf++;
 		}
+		mBitmap.copyPixelsFromBuffer(IntBuffer.wrap(mScreenPixelData));
+		mScaleMatrix.setScale(zoom, zoom);
+		mScaleMatrix.setConcat(mTranslateMatrix, mScaleMatrix);
+		canvas.drawBitmap(mBitmap, mScaleMatrix, null);
 		
 		paintKeyMatrix(canvas, zoom);
 	}

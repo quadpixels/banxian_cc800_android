@@ -1,10 +1,10 @@
 package com.simcc800;
 
 import java.io.*;
+import java.util.Calendar;
 
 // Oh. Fleur de Lis.
 public class FleurDeLisDriver {
-	private final static boolean IS_DEBUG_BISCUIT = false;
 	static short threadFlags;
 	// Some I/O related stuff
 	static boolean lcdoffshift0flag = false;
@@ -12,9 +12,8 @@ public class FleurDeLisDriver {
 	static public boolean timer0waveoutstart = false;
 	static public boolean timer1started = false;
 	static public int prevtimer0value = 0;
-	static private int lcdBuffAddr = 0;
 	private static final int RAM_SIZE = 0x10002;
-	static private byte fixedram0000[] = new byte[RAM_SIZE]; // This array keeps fixedran0000, size=64K
+	static public byte fixedram0000[] = new byte[RAM_SIZE]; // This array keeps fixedran0000, size=64K
 	static private byte[] zp40cache = new byte[0x40];
 	static byte keypadmatrix[][] = new byte[8][8];
 	static private byte[] brom_file;
@@ -120,20 +119,6 @@ public class FleurDeLisDriver {
 		return ret;
 	}
 	
-	static private byte getByteByLiteralPtr(AddressN addr) {
-		byte ret = 0x00;
-		if(addr.type == AddressType.BROM) {
-			ret = brom_file[addr.offset];
-		} else if(addr.type == AddressType.NORFLASH) {
-			ret = norflash_file[addr.offset];
-		} else if(addr.type == AddressType.SRAM) {
-			ret = fixedram0000[addr.offset];
-		} else {
-			assert(false);
-		}
-		return ret;
-	}
-	
 	static public short getWord(int address) {
 		int row = address >> 0xD;
 		short ret = 0x0000;
@@ -233,26 +218,26 @@ public class FleurDeLisDriver {
 	}
 	
 	static private void fillC000BIOSBank(AddressN[] array) {
-		bbsbankheader[0].assign(array[0]);
+		AddressN_assign(bbsbankheader[0], array[0]);
 		if((fixedram0000[0x0D] & 1)!=0) {
-			bbsbankheader[1].assignAdd(norbankheader[0], 0x2000);
+			AddressN_assignAdd(bbsbankheader[1], norbankheader[0], 0x2000);
 		} else {
 			bbsbankheader[1].set(0x4000, AddressType.SRAM);
 		}
-		bbsbankheader[2].assignAdd(array[0], 0x4000);
-		bbsbankheader[3].assignAdd(array[0], 0x6000);
+		AddressN_assignAdd(bbsbankheader[2], array[0], 0x4000);
+		AddressN_assignAdd(bbsbankheader[3], array[0], 0x6000);
 		for(int i=0; i<3; i++) {
-			bbsbankheader[i*4 + 4].assign(array[i+1]); // ##@@!!
-			bbsbankheader[i*4 + 5].assignAdd(array[i+1], 0x2000); // ##@@!!
-			bbsbankheader[i*4 + 6].assignAdd(array[i+1], 0x4000); // ##@@!!
-			bbsbankheader[i*4 + 7].assignAdd(array[i+1], 0x6000); // ##@@!!
+			AddressN_assign(bbsbankheader[i*4 + 4], array[i+1]); // ##@@!!
+			AddressN_assignAdd(bbsbankheader[i*4 + 5], array[i+1], 0x2000); // ##@@!!
+			AddressN_assignAdd(bbsbankheader[i*4 + 6], array[i+1], 0x4000); // ##@@!!
+			AddressN_assignAdd(bbsbankheader[i*4 + 7], array[i+1], 0x6000); // ##@@!!
 		}
 	}
 	
 	static private void switch4000ToBFFF(int bank) {
 		if((bank != 0) || ((fixedram0000[0x0A] & 0x80) != 0)) {
-			pmemmap[MAP4000].assign(may4000ptr[0]); // ##@@!!
-			pmemmap[MAP6000].assignAdd(may4000ptr[0], 0x2000); // ##@@!!
+			AddressN_assign(pmemmap[MAP4000], may4000ptr[0]); // ##@@!!
+			AddressN_assignAdd(pmemmap[MAP6000], may4000ptr[0], 0x2000); // ##@@!!
 		} else {
 			if((fixedram0000[0x0D] & 1) != 0) {
 				// Volume1, 3;
@@ -267,8 +252,8 @@ public class FleurDeLisDriver {
 				pmemmap[MAP6000].set(0x4000, AddressType.SRAM);
 			}
 		}
-		pmemmap[MAP8000].assignAdd(may4000ptr[0], 0x4000);
-		pmemmap[MAPA000].assignAdd(may4000ptr[0], 0x6000);
+		AddressN_assignAdd(pmemmap[MAP8000], may4000ptr[0], 0x4000);
+		AddressN_assignAdd(pmemmap[MAPA000], may4000ptr[0], 0x6000);
 	}
 	
 	private void memReset() {
@@ -287,9 +272,9 @@ public class FleurDeLisDriver {
 		// 2. Taken from InitInternalAddrs()
 		// 2.1: FillC000BIOSBank
 		fillC000BIOSBank(volume0array);
-		pmemmap[MAPC000].assign(bbsbankheader[0]);
-		may4000ptr[0].assign(volume0array[0]); //##@@!!
-		pmemmap[MAPE000].assignAdd(volume0array[0], 0x2000);
+		AddressN_assign(pmemmap[MAPC000], bbsbankheader[0]);
+		AddressN_assign(may4000ptr[0], volume0array[0]); //##@@!!
+		AddressN_assignAdd(pmemmap[MAPE000], volume0array[0], 0x2000);
 		// 2.2: switch4000toBFFF
 		switch4000ToBFFF(0);
 		fixedram0000[0x0C] = 0x28;
@@ -316,6 +301,25 @@ public class FleurDeLisDriver {
 			for(int x=0; x<8; x++) 
 				keypadmatrix[y][x]=0;
 		}
+		syncMachineTime();
+	}
+	
+	public static void syncMachineTime() {
+		Calendar c = Calendar.getInstance();
+		int year = c.get(Calendar.YEAR);
+		int month= c.get(Calendar.MONTH);
+		int day  = c.get(Calendar.DAY_OF_MONTH);
+		int hour = c.get(Calendar.HOUR_OF_DAY);
+		int min  = c.get(Calendar.MINUTE);
+		int sec  = c.get(Calendar.SECOND);
+		int wk   = c.get(Calendar.DAY_OF_WEEK);
+		
+		fixedram0000[1132] = (byte)(year-1881);
+		fixedram0000[1133] = (byte)(month-1);
+		fixedram0000[1134] = (byte)(day-1);
+		fixedram0000[1129] = (byte)(hour);
+		fixedram0000[1130] = (byte)(min);
+		fixedram0000[1131] = (byte)(sec*2);
 	}
 	
 	public static void updateKeypadRegisters() {
@@ -411,25 +415,33 @@ public class FleurDeLisDriver {
 		public int getOffset() { return offset; }
 	}
 	
-	public class AddressN extends BasicAddress implements Address {
+	public class AddressN {
+		public AddressType type;
+		public int offset;
 		public AddressN(int _offset) {
-			super(_offset);
 			type = AddressType.SRAM;
 		}
 		public AddressN(int _offset, AddressType _type) {
-			super(_offset);
 			offset=_offset; type=_type; 
 		}
 		public Address add(int delta) { return null; }
 		public int getOffset() { return offset; }
-		public void assign(BasicAddress other) { offset=other.offset; type=other.type; }
-		public void assignAdd(BasicAddress other, int delta) {
-			offset = other.offset+delta;
-			type = other.type;
-		}
+//		public void assign(AddressN array) { offset=array.offset; type=array.type; }
+//		public void assignAdd(AddressN array, int delta) {
+//			offset = array.offset+delta;
+//			type = array.type;
+//		}
 		public void set(int _offset, AddressType _type) {
 			offset = _offset; type = _type;
 		}
+	}
+	
+	public static void AddressN_assign(AddressN to, AddressN from) {
+		to.offset = from.offset; to.type = from.type;
+	}
+	public static void AddressN_assignAdd(AddressN to, AddressN from, int delta) {
+		to.offset = from.offset + delta;
+		to.type = from.type;
 	}
 	
 	// #######################
@@ -520,17 +532,17 @@ public class FleurDeLisDriver {
 				// NOR flash has 16 banks, each 32KB. Totalling 512KB.
 				char nor_bank = (char)(bank & 0xF);
 //				may4000ptr[0] = norbankheader[nor_bank];
-				may4000ptr[0].assign(norbankheader[nor_bank]); // ##@@!!
+				AddressN_assign(may4000ptr[0], norbankheader[nor_bank]); // ##@@!!
 				switch4000ToBFFF(nor_bank);
 			} else { // ROA == 0
 				if((fixedram0000[0x0D] & 1) != 0) {
 					// Volume ID, ($0D), is 1.
 //					may4000ptr[0] = volume1array[bank];
-					may4000ptr[0].assign(volume1array[bank]); // ##@@!!
+					AddressN_assign(may4000ptr[0], volume1array[bank]); // ##@@!!
 					switch4000ToBFFF(bank);
 				} else {
 //					may4000ptr[0] = volume0array[bank];
-					may4000ptr[0].assign(volume0array[bank]); // ##@@!!
+					AddressN_assign(may4000ptr[0],volume0array[bank]); // ##@@!!
 					switch4000ToBFFF(bank);
 				}
 			}
@@ -563,7 +575,6 @@ public class FleurDeLisDriver {
 			int t = ((fixedram0000[0x0C] & 0x03) << 12);
 			t |= (value << 4);
 			t = t & 0x0000FFFF;
-			lcdBuffAddr = t;
 			fixedram0000[0x09] &= 0x000000FE;
 			fixedram0000[0x06] = (byte) (value&0xFF);
 			break;
@@ -648,18 +659,18 @@ public class FleurDeLisDriver {
 				if((value & 0x80)!=0) {
 					// ROA <- 1, RAM or NOR flash.
 					bank = fixedram0000[0x00] & 0x0000000F;
-					may4000ptr[0].assign(norbankheader[bank]);
+					AddressN_assign(may4000ptr[0], norbankheader[bank]);
 				} else { // Should not write to ROM.
 					bank = fixedram0000[0x00] & 0xFF;
 					if((fixedram0000[0x0D]/*Volume ID*/&1) != 0) {
-						may4000ptr[0].assign(volume1array[bank]);
+						AddressN_assign(may4000ptr[0], volume1array[bank]);
 					} else {
-						may4000ptr[0].assign(volume0array[bank]);
+						AddressN_assign(may4000ptr[0], volume0array[bank]);
 					}
 				}
 				fixedram0000[0x0A] = (byte)value;
 				switch4000ToBFFF(bank&0xFF);
-				pmemmap[MAPC000].assign(bbsbankheader[value & 0x0F]);
+				AddressN_assign(pmemmap[MAPC000], bbsbankheader[value & 0x0F]);
 			}
 			break;
 		}
@@ -669,7 +680,6 @@ public class FleurDeLisDriver {
 			int t = ((value & 0x3) << 12) & 0x0000FFFF;
 			t = t | (fixedram0000[IO06_LCD_CONFIG] << 4);
 			fixedram0000[IO0C_LCD_CTRL] = (byte)value;
-			lcdBuffAddr = t;
 			break;
 		}
 		
@@ -681,24 +691,24 @@ public class FleurDeLisDriver {
 				if((value&1)!= 0) { // Volume 1, 3.
 					fillC000BIOSBank(volume1array);
 //					may4000ptr[0] = volume1array[bank&0xFF]; // Signed and unsigned
-					may4000ptr[0].assign(volume1array[bank&0xFF]); // ##@@!!
+					AddressN_assign(may4000ptr[0], volume1array[bank&0xFF]); // ##@@!!
 //					pmemmap[MAPE000] = volume1array[0].add(0x2000);
-					pmemmap[MAPE000].assignAdd(volume1array[0], 0x2000);
+					AddressN_assignAdd(pmemmap[MAPE000], volume1array[0], 0x2000);
 				} else { // Volume 0, 2.
 					fillC000BIOSBank(volume0array);
 //					may4000ptr[0] = volume0array[bank&0xFF]; // Signed and unsigned
-					may4000ptr[0].assign(volume0array[bank&0xFF]); // ##@@!!
+					AddressN_assign(may4000ptr[0], volume0array[bank&0xFF]); // ##@@!!
 //					pmemmap[MAPE000] = volume0array[0].add(0x2000);
-					pmemmap[MAPE000].assignAdd(volume0array[0], 0x2000); // ##@@!!
+					AddressN_assignAdd(pmemmap[MAPE000], volume0array[0], 0x2000); // ##@@!!
 				}
 				byte roabbs = fixedram0000[IO0A_ROA];
 				if((roabbs&0x80) != 0) {
 					bank = (byte)(bank & 0x0F);
 //					may4000ptr[0] = norbankheader[bank];
-					may4000ptr[0].assign(norbankheader[bank]); // ##@@!!
+					AddressN_assign(may4000ptr[0], norbankheader[bank]); // ##@@!!
 				}
 //				pmemmap[MAPC000] = bbsbankheader[roabbs & 0x0F];
-				pmemmap[MAPC000].assign(bbsbankheader[roabbs&0x0F]); // ##@@!!
+				AddressN_assign(pmemmap[MAPC000], bbsbankheader[roabbs&0x0F]); // ##@@!!
 				switch4000ToBFFF(bank&0xFF); // Signed and unsigned
 			}
 			fixedram0000[IO0D_VOLUME_ID] = (byte)value;
