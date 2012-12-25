@@ -315,7 +315,7 @@ public class FleurDeLisDriver {
 		int wk   = c.get(Calendar.DAY_OF_WEEK);
 		
 		fixedram0000[1132] = (byte)(year-1881);
-		fixedram0000[1133] = (byte)(month-1);
+		fixedram0000[1133] = (byte)(month);
 		fixedram0000[1134] = (byte)(day-1);
 		fixedram0000[1129] = (byte)(hour);
 		fixedram0000[1130] = (byte)(min);
